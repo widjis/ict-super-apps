@@ -9,6 +9,7 @@ import ServiceScreen from './screens/ServiceScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import LoginScreen from './screens/LoginScreen';
 import UserManagementScreen from './screens/UserManagementScreen';
+import UserProfileScreen from './screens/UserProfileScreen';
 import PrfMonitoringScreen from './screens/PrfMonitoringScreen';
 import PrfDetailsScreen from './screens/PrfDetailsScreen';
 import WifiNetworkScreen from './screens/WifiNetworkScreen';
@@ -44,7 +45,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface font-body text-on-surface">
-      {activeTab !== 'prf-details' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && (
+      {activeTab !== 'prf-details' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && activeTab !== 'user-profile' && (
         <TopBar 
           title={getTopBarTitle()} 
           showBack={activeTab === 'profile' || activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'wifi-network'} 
@@ -61,7 +62,8 @@ export default function App() {
         {activeTab === 'monitoring' && <MonitoringScreen />}
         {activeTab === 'service' && <ServiceScreen />}
         {activeTab === 'profile' && <ProfileScreen />}
-        {activeTab === 'user-management' && <UserManagementScreen />}
+        {activeTab === 'user-management' && <UserManagementScreen onNavigate={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'user-profile' && <UserProfileScreen onBack={() => setActiveTab('user-management')} />}
         {activeTab === 'prf-monitoring' && <PrfMonitoringScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'prf-details' && <PrfDetailsScreen onBack={() => setActiveTab('prf-monitoring')} />}
         {activeTab === 'wifi-network' && <WifiNetworkScreen onNavigate={(tab) => setActiveTab(tab)} />}
@@ -112,7 +114,7 @@ export default function App() {
         )}
       </main>
 
-      {activeTab !== 'prf-details' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
+      {activeTab !== 'prf-details' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && activeTab !== 'user-profile' && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
     </div>
   );
 }

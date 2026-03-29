@@ -1,6 +1,10 @@
 import { Search, Info, UserPlus, Unlock, RotateCcw } from 'lucide-react';
 
-export default function UserManagementScreen() {
+interface UserManagementScreenProps {
+  onNavigate?: (screen: string) => void;
+}
+
+export default function UserManagementScreen({ onNavigate }: UserManagementScreenProps) {
   return (
     <div className="max-w-2xl mx-auto px-6 pt-6 pb-32">
       {/* Editorial Header Section */}
@@ -40,7 +44,10 @@ export default function UserManagementScreen() {
         </div>
 
         {/* User Card 1 */}
-        <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all">
+        <div 
+          onClick={() => onNavigate?.('user-profile')}
+          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all cursor-pointer hover:bg-surface-container-lowest/50"
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -58,11 +65,17 @@ export default function UserManagementScreen() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
+            >
               <RotateCcw className="w-4 h-4" />
               Reset Password
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
+            >
               <Unlock className="w-4 h-4" />
               Unlock Account
             </button>
@@ -70,7 +83,10 @@ export default function UserManagementScreen() {
         </div>
 
         {/* User Card 2 (Locked/Inactive) */}
-        <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all opacity-90">
+        <div 
+          onClick={() => onNavigate?.('user-profile')}
+          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all opacity-90 cursor-pointer hover:bg-surface-container-lowest/50"
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -88,11 +104,17 @@ export default function UserManagementScreen() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
+            >
               <RotateCcw className="w-4 h-4" />
               Reset Password
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm"
+            >
               <Unlock className="w-4 h-4" />
               Unlock Account
             </button>
@@ -100,7 +122,10 @@ export default function UserManagementScreen() {
         </div>
 
         {/* User Card 3 */}
-        <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all">
+        <div 
+          onClick={() => onNavigate?.('user-profile')}
+          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all cursor-pointer hover:bg-surface-container-lowest/50"
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -118,11 +143,17 @@ export default function UserManagementScreen() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
+            >
               <RotateCcw className="w-4 h-4" />
               Reset Password
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
+            >
               <Unlock className="w-4 h-4" />
               Unlock Account
             </button>
@@ -130,7 +161,10 @@ export default function UserManagementScreen() {
         </div>
 
         {/* User Card 4 */}
-        <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all">
+        <div 
+          onClick={() => onNavigate?.('user-profile')}
+          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all cursor-pointer hover:bg-surface-container-lowest/50"
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -150,11 +184,17 @@ export default function UserManagementScreen() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
+            >
               <RotateCcw className="w-4 h-4" />
               Reset Password
             </button>
-            <button className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95">
+            <button 
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
+            >
               <Unlock className="w-4 h-4" />
               Unlock Account
             </button>
