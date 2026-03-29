@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "db:migrate": "node src/db-migrate.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "jose": "^6.1.0",
-    "ldapts": "^8.0.10"
+    "ldapts": "^8.0.10",
+    "node-pg-migrate": "^8.0.0",
+    "pg": "^8.16.3"
   },
   "engines": {
     "node": ">=20"
