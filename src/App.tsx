@@ -10,6 +10,10 @@ import LoginScreen from './screens/LoginScreen';
 import UserManagementScreen from './screens/UserManagementScreen';
 import PrfMonitoringScreen from './screens/PrfMonitoringScreen';
 import PrfDetailsScreen from './screens/PrfDetailsScreen';
+import WifiNetworkScreen from './screens/WifiNetworkScreen';
+import RegisterDeviceScreen from './screens/RegisterDeviceScreen';
+import CheckDeviceStatusScreen from './screens/CheckDeviceStatusScreen';
+import LeaseExpirationReportScreen from './screens/LeaseExpirationReportScreen';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,18 +33,22 @@ export default function App() {
       case 'user-management': return 'User Management';
       case 'prf-monitoring': return 'PRF Monitoring';
       case 'prf-details': return 'PRF Details';
+      case 'wifi-network': return 'WiFi & Network';
+      case 'register-device': return 'Register Device';
+      case 'check-device-status': return 'Check Device Status';
+      case 'lease-expiration': return 'Lease Expiration Report';
       default: return 'Good morning, Operator';
     }
   };
 
   return (
     <div className="min-h-screen bg-surface font-body text-on-surface">
-      {activeTab !== 'prf-details' && (
+      {activeTab !== 'prf-details' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && (
         <TopBar 
           title={getTopBarTitle()} 
-          showBack={activeTab === 'profile' || activeTab === 'user-management' || activeTab === 'prf-monitoring'} 
+          showBack={activeTab === 'profile' || activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'wifi-network'} 
           onBack={() => {
-            if (activeTab === 'user-management' || activeTab === 'prf-monitoring') setActiveTab('hub');
+            if (activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'wifi-network') setActiveTab('hub');
             else setActiveTab('home');
           }}
         />
@@ -55,9 +63,55 @@ export default function App() {
         {activeTab === 'user-management' && <UserManagementScreen />}
         {activeTab === 'prf-monitoring' && <PrfMonitoringScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'prf-details' && <PrfDetailsScreen onBack={() => setActiveTab('prf-monitoring')} />}
+        {activeTab === 'wifi-network' && <WifiNetworkScreen onNavigate={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'register-device' && (
+          <>
+            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
+              <div className="flex items-center gap-4">
+                <button onClick={() => setActiveTab('wifi-network')} className="material-symbols-outlined text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
+                  arrow_back
+                </button>
+                <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
+              </div>
+            </header>
+            <div className="pt-16">
+              <RegisterDeviceScreen onBack={() => setActiveTab('wifi-network')} />
+            </div>
+          </>
+        )}
+        {activeTab === 'check-device-status' && (
+          <>
+            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
+              <div className="flex items-center gap-4">
+                <button onClick={() => setActiveTab('wifi-network')} className="material-symbols-outlined text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
+                  arrow_back
+                </button>
+                <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
+              </div>
+            </header>
+            <div className="pt-16">
+              <CheckDeviceStatusScreen onBack={() => setActiveTab('wifi-network')} />
+            </div>
+          </>
+        )}
+        {activeTab === 'lease-expiration' && (
+          <>
+            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
+              <div className="flex items-center gap-4">
+                <button onClick={() => setActiveTab('wifi-network')} className="material-symbols-outlined text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
+                  arrow_back
+                </button>
+                <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
+              </div>
+            </header>
+            <div className="pt-16">
+              <LeaseExpirationReportScreen onBack={() => setActiveTab('wifi-network')} />
+            </div>
+          </>
+        )}
       </main>
 
-      {activeTab !== 'prf-details' && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
+      {activeTab !== 'prf-details' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
     </div>
   );
 }

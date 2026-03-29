@@ -88,6 +88,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
                 if (onNavigate) {
                   if (feature.title === 'User Management') onNavigate('user-management');
                   if (feature.title === 'PRF Monitoring') onNavigate('prf-monitoring');
+                  if (feature.title === 'WiFi & Network') onNavigate('wifi-network');
                 }
               }}
               className="bg-surface-container-lowest p-5 rounded-2xl shadow-[0_8px_24px_rgba(42,52,57,0.04)] flex flex-col gap-4 border border-transparent hover:border-primary/10 transition-all active:scale-95 group text-left"
