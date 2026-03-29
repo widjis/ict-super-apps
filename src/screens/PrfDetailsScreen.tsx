@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, MoreHorizontal, Search, SlidersHorizontal, Briefcase, CloudUpload, RefreshCw, FileText, Download, Eye, MessageSquare, Hourglass, CheckCircle, Settings, FileUp, User } from 'lucide-react';
+import { getSelectedPomonPrfId, pomonGetPrfWithItems, type PomonPrfWithItems } from '../lib/pomon-api';
 
 interface PrfDetailsScreenProps {
   onBack: () => void;
@@ -7,6 +8,63 @@ interface PrfDetailsScreenProps {
 
 export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const [activeTab, setActiveTab] = useState<'items' | 'documents' | 'activity'>('items');
+  const [prf, setPrf] = useState<PomonPrfWithItems | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const prfId = useMemo(() => getSelectedPomonPrfId(), []);
+  const currency = useMemo(() => {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!prfId) {
+      setError('No PRF selected.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    void (async () => {
+      try {
+        const resp = await pomonGetPrfWithItems(prfId);
+        if (!active) return;
+        if (!resp?.success || !resp.data || typeof resp.data !== 'object') {
+          setError('Unable to load PRF details.');
+          setPrf(null);
+          return;
+        }
+        setPrf(resp.data);
+      } catch {
+        if (!active) return;
+        setError('Unable to load PRF details.');
+        setPrf(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [prfId]);
+
+  const prfNo = typeof prf?.PRFNo === 'string' ? prf?.PRFNo : null;
+  const submitBy = typeof prf?.SubmitBy === 'string' ? prf?.SubmitBy : null;
+  const submittedAtRaw = typeof prf?.DateSubmit === 'string' ? prf.DateSubmit : typeof prf?.RequestDate === 'string' ? prf.RequestDate : null;
+  const submittedAt = submittedAtRaw ? new Date(submittedAtRaw) : null;
+  const statusLabel = typeof prf?.Status === 'string' ? prf.Status : null;
+  const priorityLabel = typeof prf?.Priority === 'string' ? prf.Priority : null;
+  const dept = typeof prf?.Department === 'string' ? prf.Department : null;
+  const costCode = typeof prf?.PurchaseCostCode === 'string' ? prf.PurchaseCostCode : null;
+  const budgetYear = typeof prf?.BudgetYear === 'number' ? prf.BudgetYear : null;
+  const requestedAmount = typeof prf?.RequestedAmount === 'number' ? prf.RequestedAmount : null;
+  const approvedAmount = typeof prf?.ApprovedAmount === 'number' ? prf.ApprovedAmount : null;
+  const requiredFor = typeof prf?.RequiredFor === 'string' ? prf.RequiredFor : null;
+  const summary = typeof prf?.SumDescriptionRequested === 'string' ? (prf as any).SumDescriptionRequested : typeof prf?.Description === 'string' ? prf.Description : null;
+  const items = Array.isArray(prf?.Items) ? prf.Items : [];
 
   return (
     <div className="bg-[#F8FAFC] font-body min-h-screen pb-20">
@@ -30,19 +88,18 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
           {/* PRF Info Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="flex-1">
-              <h1 className="text-3xl font-extrabold font-headline mb-2">PRF #43373</h1>
+              <h1 className="text-3xl font-extrabold font-headline mb-2">{prfNo ? `PRF #${prfNo}` : 'PRF Details'}</h1>
               <p className="text-white/70 text-sm leading-relaxed max-w-lg">
-                Submitted 2026-03-26T00:00:00.000Z by Adriana User
+                {submittedAt ? `Submitted ${submittedAt.toISOString()}${submitBy ? ` by ${submitBy}` : ''}` : loading ? 'Loading…' : ''}
               </p>
             </div>
             <div className="flex flex-col gap-2 shrink-0">
               <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-lg border border-white/20 text-center">
-                <span className="text-[10px] font-bold block leading-tight">REQ. APPROVAL</span>
-                <span className="text-[10px] font-bold block leading-tight">REQD</span>
+                <span className="text-[10px] font-bold block leading-tight uppercase">{statusLabel ? statusLabel : '—'}</span>
               </div>
               <div className="bg-[#F59E0B] px-4 py-2 rounded-lg text-center shadow-lg">
                 <span className="text-[10px] font-black block leading-tight text-white">PRIORITY:</span>
-                <span className="text-[10px] font-black block leading-tight text-white uppercase">Medium</span>
+                <span className="text-[10px] font-black block leading-tight text-white uppercase">{priorityLabel ? priorityLabel : '—'}</span>
               </div>
             </div>
           </div>
@@ -72,41 +129,47 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 -mt-4 pb-20">
+        {error && (
+          <div className="bg-white rounded-[24px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] mb-6 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        )}
+
         {/* Main Info Card */}
         <section className="bg-white rounded-[32px] p-8 shadow-[0_4px_20px_rgba(0,0,0,0.04)] mb-8 relative z-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Department</span>
-              <p className="text-slate-800 font-bold text-base">HR / ICT</p>
+              <p className="text-slate-800 font-bold text-base">{dept ?? '—'}</p>
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Submit By</span>
-              <p className="text-slate-800 font-bold text-base">Adriana Riska Rante [MTI]</p>
+              <p className="text-slate-800 font-bold text-base">{submitBy ?? '—'}</p>
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Cost Code</span>
-              <p className="text-slate-800 font-bold text-base font-mono">MTIRMRAD426249</p>
+              <p className="text-slate-800 font-bold text-base font-mono">{costCode ?? '—'}</p>
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Budget Year</span>
-              <p className="text-slate-800 font-bold text-base">2026</p>
+              <p className="text-slate-800 font-bold text-base">{budgetYear ?? '—'}</p>
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1 text-[#3E26A8]">Requested Amount</span>
-              <p className="text-[#3E26A8] font-extrabold text-xl">Rp 38.200.000</p>
+              <p className="text-[#3E26A8] font-extrabold text-xl">{requestedAmount !== null ? currency.format(requestedAmount) : '—'}</p>
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Approved Amount</span>
-              <p className="text-slate-800 font-bold text-xl">Rp 0</p>
+              <p className="text-slate-800 font-bold text-xl">{approvedAmount !== null ? currency.format(approvedAmount) : currency.format(0)}</p>
             </div>
             <div className="md:col-span-2">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Required For</span>
-              <p className="text-slate-800 font-bold text-base">For Messhall Kitchen Makari Camp - For SS Team</p>
+              <p className="text-slate-800 font-bold text-base">{requiredFor ?? '—'}</p>
             </div>
             <div className="md:col-span-2">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Summary</span>
               <p className="text-slate-500 text-sm leading-relaxed">
-                This project involves the procurement of various IT and infrastructure equipment for the HR and ICT departments.
+                {summary ?? '—'}
               </p>
             </div>
           </div>
@@ -131,130 +194,44 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
 
             {/* Items List */}
             <div className="space-y-4">
-              {/* Item Card 1 */}
-              <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-bold text-slate-800 text-lg flex-1 mr-4">Uniview 2MP HD IR Fixed Dome Network Camera PoE</h3>
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">Pending</span>
+              {!loading && !items.length && (
+                <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)] text-slate-500 text-sm">
+                  No items found.
                 </div>
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center text-sm">
-                    <span className="text-slate-400 w-32">SKU:</span>
-                    <span className="text-slate-800 font-medium">-</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Quantity Verified</span>
-                    <span className="text-slate-800 font-bold">0 / 1</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="bg-[#3E26A8] h-full w-0"></div>
-                  </div>
-                </div>
-                <button className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20">
-                  <Briefcase className="w-5 h-5" />
-                  Check Goods
-                </button>
-              </div>
+              )}
 
-              {/* Item Card 2 */}
-              <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-bold text-slate-800 text-lg flex-1 mr-4">RACK, WALLMOUNT, SGL DOOR, WIR7012S-12U</h3>
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">Pending</span>
-                </div>
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center text-sm">
-                    <span className="text-slate-400 w-32">SKU:</span>
-                    <span className="text-slate-800 font-medium">-</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Quantity Verified</span>
-                    <span className="text-slate-800 font-bold">0 / 1</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="bg-[#3E26A8] h-full w-0"></div>
-                  </div>
-                </div>
-                <button className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20">
-                  <Briefcase className="w-5 h-5" />
-                  Check Goods
-                </button>
-              </div>
+              {items.map((it: any) => {
+                const itemId = typeof it?.PRFItemID === 'number' ? it.PRFItemID : undefined;
+                const name = typeof it?.ItemName === 'string' ? it.ItemName : '—';
+                const itemStatus = typeof it?.Status === 'string' ? it.Status : '—';
+                const qty = typeof it?.Quantity === 'number' ? it.Quantity : null;
+                const total = typeof it?.TotalPrice === 'number' ? it.TotalPrice : null;
 
-              {/* Item Card 3 */}
-              <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-bold text-slate-800 text-lg flex-1 mr-4">CABLE, UTP CAT6</h3>
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">Pending</span>
-                </div>
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center text-sm">
-                    <span className="text-slate-400 w-32">SKU:</span>
-                    <span className="text-slate-800 font-medium">-</span>
+                return (
+                  <div key={itemId ?? name} className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="font-bold text-slate-800 text-lg flex-1 mr-4">{name}</h3>
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">
+                        {itemStatus}
+                      </span>
+                    </div>
+                    <div className="space-y-3 mb-6">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400">Quantity</span>
+                        <span className="text-slate-800 font-bold">{qty ?? '—'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-400">Total</span>
+                        <span className="text-slate-800 font-bold">{total !== null ? currency.format(total) : '—'}</span>
+                      </div>
+                    </div>
+                    <button className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20">
+                      <Briefcase className="w-5 h-5" />
+                      Check Goods
+                    </button>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Quantity Verified</span>
-                    <span className="text-slate-800 font-bold">0 / 4</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="bg-[#3E26A8] h-full w-0"></div>
-                  </div>
-                </div>
-                <button className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20">
-                  <Briefcase className="w-5 h-5" />
-                  Check Goods
-                </button>
-              </div>
-
-              {/* Item Card 4 */}
-              <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-bold text-slate-800 text-lg flex-1 mr-4">Pipa conduit 20mm clipsal</h3>
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">Pending</span>
-                </div>
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center text-sm">
-                    <span className="text-slate-400 w-32">SKU:</span>
-                    <span className="text-slate-800 font-medium">-</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Quantity Verified</span>
-                    <span className="text-slate-800 font-bold">0 / 350</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="bg-[#3E26A8] h-full w-0"></div>
-                  </div>
-                </div>
-                <button className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20">
-                  <Briefcase className="w-5 h-5" />
-                  Check Goods
-                </button>
-              </div>
-
-              {/* Item Card 5 */}
-              <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-bold text-slate-800 text-lg flex-1 mr-4">Sambungan pipa COUPLING, PIPE, CONDT, SKT, 20MM</h3>
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">Pending</span>
-                </div>
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center text-sm">
-                    <span className="text-slate-400 w-32">SKU:</span>
-                    <span className="text-slate-800 font-medium">-</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Quantity Verified</span>
-                    <span className="text-slate-800 font-bold">0 / 4</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="bg-[#3E26A8] h-full w-0"></div>
-                  </div>
-                </div>
-                <button className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20">
-                  <Briefcase className="w-5 h-5" />
-                  Check Goods
-                </button>
-              </div>
+                );
+              })}
             </div>
           </>
         )}

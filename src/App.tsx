@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import TopBar from './components/TopBar';
@@ -18,25 +18,62 @@ import WifiNetworkScreen from './screens/WifiNetworkScreen';
 import RegisterDeviceScreen from './screens/RegisterDeviceScreen';
 import CheckDeviceStatusScreen from './screens/CheckDeviceStatusScreen';
 import LeaseExpirationReportScreen from './screens/LeaseExpirationReportScreen';
+import { clearSavedSession, getAuthToken, getBiometricEnabled, setAuthToken } from './auth/storage';
+import { getApiBaseUrl } from './lib/api';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem('auth_token')));
-  const [biometricUnlocked, setBiometricUnlocked] = useState(() => {
-    const enabled = localStorage.getItem('biometric_enabled') === 'true';
-    const hasToken = Boolean(localStorage.getItem('auth_token'));
-    const needs = enabled && Capacitor.isNativePlatform() && hasToken;
-    return !needs;
-  });
+  const [booting, setBooting] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [biometricUnlocked, setBiometricUnlocked] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
 
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      let token = await getAuthToken();
+      if (!active) return;
+
+      if (token) {
+        const apiBaseUrl = getApiBaseUrl();
+        if (apiBaseUrl) {
+          try {
+            const resp = await fetch(`${apiBaseUrl}/api/me`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!resp.ok) {
+              await setAuthToken(null);
+              token = null;
+            }
+          } catch {}
+        }
+      }
+
+      const enabled = getBiometricEnabled();
+      const hasToken = Boolean(token);
+      const needs = enabled && Capacitor.isNativePlatform() && hasToken;
+
+      setIsAuthenticated(hasToken);
+      setBiometricUnlocked(!needs);
+      setBooting(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const logout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    localStorage.removeItem('biometric_enabled');
-    setBiometricUnlocked(true);
-    setIsAuthenticated(false);
-    setActiveTab('home');
+    void (async () => {
+      await clearSavedSession();
+      setBiometricUnlocked(true);
+      setIsAuthenticated(false);
+      setActiveTab('home');
+    })();
   };
+
+  if (booting) {
+    return <div className="min-h-screen bg-surface font-body text-on-surface" />;
+  }
 
   if (!isAuthenticated) {
     return (
