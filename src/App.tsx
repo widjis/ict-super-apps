@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import TopBar from './components/TopBar';
 import BottomNav from './components/BottomNav';
 import HomeScreen from './screens/HomeScreen';
@@ -8,6 +9,7 @@ import MonitoringScreen from './screens/MonitoringScreen';
 import ServiceScreen from './screens/ServiceScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import LoginScreen from './screens/LoginScreen';
+import BiometricUnlockScreen from './screens/BiometricUnlockScreen';
 import UserManagementScreen from './screens/UserManagementScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
 import PrfMonitoringScreen from './screens/PrfMonitoringScreen';
@@ -18,11 +20,45 @@ import CheckDeviceStatusScreen from './screens/CheckDeviceStatusScreen';
 import LeaseExpirationReportScreen from './screens/LeaseExpirationReportScreen';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem('auth_token')));
+  const [biometricUnlocked, setBiometricUnlocked] = useState(() => {
+    const enabled = localStorage.getItem('biometric_enabled') === 'true';
+    const hasToken = Boolean(localStorage.getItem('auth_token'));
+    const needs = enabled && Capacitor.isNativePlatform() && hasToken;
+    return !needs;
+  });
   const [activeTab, setActiveTab] = useState('home');
 
+  const logout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('biometric_enabled');
+    setBiometricUnlocked(true);
+    setIsAuthenticated(false);
+    setActiveTab('home');
+  };
+
   if (!isAuthenticated) {
-    return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+    return (
+      <LoginScreen
+        onLogin={() => {
+          setBiometricUnlocked(true);
+          setIsAuthenticated(true);
+        }}
+        onLogout={logout}
+      />
+    );
+  }
+
+  if (!biometricUnlocked) {
+    return (
+      <BiometricUnlockScreen
+        onUnlocked={() => {
+          setBiometricUnlocked(true);
+        }}
+        onLogout={logout}
+      />
+    );
   }
 
   const getTopBarTitle = () => {
@@ -61,7 +97,7 @@ export default function App() {
         {activeTab === 'hub' && <HubScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'monitoring' && <MonitoringScreen />}
         {activeTab === 'service' && <ServiceScreen />}
-        {activeTab === 'profile' && <ProfileScreen />}
+        {activeTab === 'profile' && <ProfileScreen onLogout={logout} />}
         {activeTab === 'user-management' && <UserManagementScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'user-profile' && <UserProfileScreen onBack={() => setActiveTab('user-management')} />}
         {activeTab === 'prf-monitoring' && <PrfMonitoringScreen onNavigate={(tab) => setActiveTab(tab)} />}

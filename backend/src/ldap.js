@@ -25,6 +25,46 @@ function getBooleanEnv(name, defaultValue) {
   return raw === 'true' || raw === '1' || raw === 'yes';
 }
 
+function toLdapStageError(stage, err) {
+  const code = typeof err?.code === 'string' ? err.code : undefined;
+  const message = typeof err?.message === 'string' ? err.message : '';
+
+  const tlsHints = ['certificate', 'self signed', 'unable to verify', 'CERT_', 'tls', 'SSL'];
+  const isTls = tlsHints.some((h) => message.toLowerCase().includes(h.toLowerCase())) || (code?.startsWith('CERT_') ?? false);
+
+  const connectCodes = new Set(['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'EHOSTUNREACH', 'ECONNRESET']);
+  const isConnect = code ? connectCodes.has(code) : false;
+
+  const stageCode = `${stage}_FAILED`;
+  const errCode = isTls ? 'LDAP_TLS_FAILED' : isConnect ? 'LDAP_CONNECT_FAILED' : `LDAP_${stageCode}`;
+
+  const wrapped = new Error('LDAP operation failed');
+  wrapped.code = errCode;
+  wrapped.details = {
+    stage,
+    originalCode: code ?? null
+  };
+  return wrapped;
+}
+
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) return value.filter((v) => typeof v === 'string');
+  if (typeof value === 'string' && value) return [value];
+  return [];
+}
+
+function parseAllowedGroupDns() {
+  const raw = process.env.LDAP_ALLOWED_GROUPS;
+  if (!raw) return [];
+  if (raw.includes(';')) {
+    return raw
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [raw.trim()].filter(Boolean);
+}
+
 export async function authenticateWithActiveDirectory({ username, password }) {
   const url = process.env.LDAP_URL;
   const bindDN = process.env.LDAP_BIND_DN;
@@ -43,7 +83,8 @@ export async function authenticateWithActiveDirectory({ username, password }) {
     throw err;
   }
 
-  const allowInsecure = !getBooleanEnv('LDAP_TLS_REJECT_UNAUTHORIZED', true);
+  const defaultRejectUnauthorized = process.env.NODE_ENV === 'production';
+  const allowInsecure = !getBooleanEnv('LDAP_TLS_REJECT_UNAUTHORIZED', defaultRejectUnauthorized);
   const client = new Client({
     url,
     timeout: 10_000,
@@ -52,19 +93,28 @@ export async function authenticateWithActiveDirectory({ username, password }) {
   });
 
   try {
-    await client.bind(bindDN, bindPassword);
+    try {
+      await client.bind(bindDN, bindPassword);
+    } catch (err) {
+      throw toLdapStageError('SERVICE_BIND', err);
+    }
 
     const safe = escapeLdapFilterValue(username);
     const filter = username.includes('@')
       ? `(userPrincipalName=${safe})`
       : `(sAMAccountName=${safe})`;
 
-    const { searchEntries } = await client.search(baseDN, {
-      scope: 'sub',
-      filter,
-      sizeLimit: 2,
-      attributes: ['dn', 'cn', 'displayName', 'mail', 'sAMAccountName', 'userPrincipalName', 'memberOf']
-    });
+    let searchEntries;
+    try {
+      ({ searchEntries } = await client.search(baseDN, {
+        scope: 'sub',
+        filter,
+        sizeLimit: 2,
+        attributes: ['dn', 'cn', 'displayName', 'mail', 'sAMAccountName', 'userPrincipalName', 'memberOf']
+      }));
+    } catch (err) {
+      throw toLdapStageError('SEARCH', err);
+    }
 
     if (searchEntries.length !== 1) {
       return { ok: false, reason: 'NOT_FOUND' };
@@ -81,11 +131,25 @@ export async function authenticateWithActiveDirectory({ username, password }) {
     });
 
     try {
-      await verifyClient.bind(userDN, password);
+      try {
+        await verifyClient.bind(userDN, password);
+      } catch {
+        return { ok: false, reason: 'INVALID_CREDENTIALS' };
+      }
     } catch {
       return { ok: false, reason: 'INVALID_CREDENTIALS' };
     } finally {
       await verifyClient.unbind().catch(() => undefined);
+    }
+
+    const memberOf = normalizeStringArray(entry.memberOf);
+    const allowedGroups = parseAllowedGroupDns();
+    if (allowedGroups.length > 0) {
+      const memberOfLower = new Set(memberOf.map((dn) => dn.toLowerCase()));
+      const ok = allowedGroups.some((dn) => memberOfLower.has(dn.toLowerCase()));
+      if (!ok) {
+        return { ok: false, reason: 'NOT_ALLOWED' };
+      }
     }
 
     return {
@@ -96,11 +160,10 @@ export async function authenticateWithActiveDirectory({ username, password }) {
         upn: entry.userPrincipalName ?? null,
         displayName: entry.displayName ?? entry.cn ?? null,
         email: entry.mail ?? null,
-        memberOf: entry.memberOf ?? []
+        memberOf
       }
     };
   } finally {
     await client.unbind().catch(() => undefined);
   }
 }
-

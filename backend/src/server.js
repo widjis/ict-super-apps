@@ -5,7 +5,7 @@ import { signAccessToken, verifyAccessToken } from './jwt.js';
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '1mb' }));
@@ -37,6 +37,9 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const result = await authenticateWithActiveDirectory({ username, password });
     if (!result.ok) {
+      if (result.reason === 'NOT_ALLOWED') {
+        return res.status(403).json({ ok: false, error: result.reason });
+      }
       return res.status(401).json({ ok: false, error: result.reason });
     }
 
@@ -50,8 +53,12 @@ app.post('/api/auth/login', async (req, res) => {
 
     return res.json({ ok: true, token, user: result.user });
   } catch (err) {
-    if (err?.code === 'LDAP_CONFIG_MISSING' || err?.code === 'JWT_SECRET_MISSING') {
-      return res.status(500).json({ ok: false, error: err.code });
+    const code = typeof err?.code === 'string' ? err.code : 'LOGIN_FAILED';
+    if (code === 'LDAP_CONFIG_MISSING' || code === 'JWT_SECRET_MISSING') {
+      return res.status(500).json({ ok: false, error: code });
+    }
+    if (code.startsWith('LDAP_')) {
+      return res.status(502).json({ ok: false, error: code });
     }
     return res.status(500).json({ ok: false, error: 'LOGIN_FAILED' });
   }
@@ -70,8 +77,13 @@ app.get('/api/me', async (req, res) => {
   }
 });
 
-const port = Number(process.env.PORT ?? 8080);
+export function startServer() {
+  const port = Number(process.env.PORT ?? 8080);
+  return app.listen(port, '0.0.0.0', () => {
+    process.stdout.write(`backend listening on http://0.0.0.0:${port}\n`);
+  });
+}
 
-app.listen(port, '0.0.0.0', () => {
-  process.stdout.write(`backend listening on http://0.0.0.0:${port}\n`);
-});
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
+  startServer();
+}

@@ -1,14 +1,95 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Shield, HelpCircle, Terminal, User, Lock, EyeOff, ArrowRight, Key } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
 
 interface LoginScreenProps {
   onLogin: () => void;
+  onLogout?: () => void;
 }
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  const handleSubmit = (e: React.FormEvent) => {
+export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enableBiometric, setEnableBiometric] = useState(() => localStorage.getItem('biometric_enabled') === 'true');
+
+  const apiBaseUrl = useMemo(() => {
+    const base = (import.meta as any).env?.VITE_API_BASE_URL;
+    return typeof base === 'string' ? base.replace(/\/+$/, '') : '';
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const resp = await fetch(`${apiBaseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.ok) {
+        const code = typeof data?.error === 'string' ? data.error : null;
+        if (code === 'INVALID_CREDENTIALS' || code === 'NOT_FOUND') {
+          setError('Login failed. Check your username and password.');
+        } else if (code === 'NOT_ALLOWED') {
+          setError('Login blocked. Your account is not in the allowed AD group.');
+        } else if (code === 'LDAP_TLS_FAILED') {
+          setError('LDAPS connection failed (TLS/certificate). Check backend TLS configuration.');
+        } else if (code?.startsWith('LDAP_')) {
+          setError(`Login failed (${code}).`);
+        } else {
+          setError('Login failed. Please try again.');
+        }
+        return;
+      }
+
+      if (typeof data.token === 'string') {
+        localStorage.setItem('auth_token', data.token);
+      }
+      if (data.user) {
+        localStorage.setItem('auth_user', JSON.stringify(data.user));
+      }
+
+      if (enableBiometric) {
+        if (!Capacitor.isNativePlatform()) {
+          localStorage.setItem('biometric_enabled', 'false');
+        } else {
+          try {
+            const info = await BiometricAuth.checkBiometry();
+            if (info.isAvailable || info.deviceIsSecure) {
+              await BiometricAuth.authenticate({
+                reason: 'Enable biometric unlock',
+                cancelTitle: 'Cancel',
+                allowDeviceCredential: true,
+                iosFallbackTitle: 'Use passcode',
+                androidTitle: 'Enable biometrics',
+                androidSubtitle: 'Authenticate to enable biometric unlock',
+                androidConfirmationRequired: false,
+              });
+              localStorage.setItem('biometric_enabled', 'true');
+            } else {
+              localStorage.setItem('biometric_enabled', 'false');
+            }
+          } catch {
+            localStorage.setItem('biometric_enabled', 'false');
+          }
+        }
+      } else {
+        localStorage.setItem('biometric_enabled', 'false');
+      }
+
+      onLogin();
+    } catch {
+      setError('Unable to reach the server.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,6 +139,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <input 
                   type="text" 
                   placeholder="nexus-ops-742" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                  disabled={loading}
                   className="w-full bg-surface-container-highest border-none rounded-lg py-3.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all duration-250 placeholder:text-outline outline-none"
                 />
               </div>
@@ -77,6 +162,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <input 
                   type="password" 
                   placeholder="••••••••••••" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  disabled={loading}
                   className="w-full bg-surface-container-highest border-none rounded-lg py-3.5 pl-10 pr-10 text-sm focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all duration-250 placeholder:text-outline outline-none"
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer">
@@ -85,12 +174,32 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               </div>
             </div>
 
+            {Capacitor.isNativePlatform() && (
+              <label className="flex items-center gap-3 text-sm font-medium text-on-surface-variant">
+                <input
+                  type="checkbox"
+                  checked={enableBiometric}
+                  onChange={(e) => setEnableBiometric(e.target.checked)}
+                  disabled={loading}
+                  className="h-4 w-4 rounded border-outline-variant/40 text-primary focus:ring-primary/40"
+                />
+                <span>Enable biometric unlock on this device</span>
+              </label>
+            )}
+
+            {error && (
+              <div className="bg-error-container/25 text-on-error-container px-4 py-3 rounded-xl text-sm font-medium">
+                {error}
+              </div>
+            )}
+
             {/* Primary Action */}
             <button 
               type="submit" 
+              disabled={loading || !username.trim() || !password}
               className="w-full bg-gradient-to-br from-[#0053db] to-[#0048c1] text-on-primary font-bold py-4 rounded-xl shadow-[0_8px_24px_rgba(42,52,57,0.06)] hover:brightness-110 active:scale-[0.98] transition-all duration-250 flex items-center justify-center gap-2"
             >
-              <span>Sign In</span>
+              <span>{loading ? 'Signing in...' : 'Sign In'}</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </form>
@@ -112,6 +221,17 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             <div className="flex justify-center">
               <a href="#" className="text-sm font-semibold text-primary hover:text-primary-dim transition-colors">Forgot Password?</a>
             </div>
+            {onLogout && (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors uppercase tracking-widest"
+                >
+                  Clear saved session
+                </button>
+              </div>
+            )}
           </div>
         </section>
 

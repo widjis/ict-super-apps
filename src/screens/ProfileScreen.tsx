@@ -1,6 +1,10 @@
 import { Edit2, ShieldCheck, BellRing, Moon, Shield, Info, LogOut, ChevronRight } from 'lucide-react';
 
-export default function ProfileScreen() {
+interface ProfileScreenProps {
+  onLogout?: () => void;
+}
+
+export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 pb-32">
       {/* User Profile Hero Section */}
@@ -128,7 +132,10 @@ export default function ProfileScreen() {
         </div>
 
         <div className="px-2 pt-4">
-          <button className="w-full flex items-center justify-center gap-2 p-4 text-error font-bold border-2 border-error/10 rounded-3xl hover:bg-error/5 transition-colors active:scale-[0.98]">
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 p-4 text-error font-bold border-2 border-error/10 rounded-3xl hover:bg-error/5 transition-colors active:scale-[0.98]"
+          >
             <LogOut className="w-5 h-5" />
             Sign Out Account
           </button>
