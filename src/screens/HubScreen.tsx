@@ -1,4 +1,4 @@
-import { Users, Wifi, Server, ShieldCheck, Headset, Activity, ChevronRight } from 'lucide-react';
+import { Users, Wifi, Server, ShieldCheck, Headset, Activity, Gauge, ChevronRight } from 'lucide-react';
 
 interface HubScreenProps {
   onNavigate?: (screen: string) => void;
@@ -6,26 +6,52 @@ interface HubScreenProps {
 
 export default function HubScreen({ onNavigate }: HubScreenProps) {
   const features = [
-    { icon: Users, title: 'User Management', desc: 'Directory services and access control', color: 'primary' },
-    { icon: Wifi, title: 'WiFi & Network', desc: 'WLAN configuration and mesh topology', color: 'secondary' },
-    { icon: Server, title: 'Infrastructure', desc: 'Server health and hardware lifecycle', color: 'tertiary' },
-    { icon: ShieldCheck, title: 'License & Compliance', desc: 'Audit trails and software entitlements', color: 'error' },
-    { icon: Headset, title: 'Helpdesk', desc: 'Incident response and ticket queue', color: 'primary' },
-    { icon: Activity, title: 'Monitoring Tools', desc: 'Real-time telemetry and log analysis', color: 'secondary' },
+    { 
+      icon: Users, 
+      title: 'User Management', 
+      desc: 'Directory services and access control', 
+      colorClasses: 'bg-primary-container/30 text-primary group-hover:bg-primary group-hover:text-on-primary' 
+    },
+    { 
+      icon: Wifi, 
+      title: 'WiFi & Network', 
+      desc: 'WLAN configuration and mesh topology', 
+      colorClasses: 'bg-secondary-container/30 text-secondary group-hover:bg-secondary group-hover:text-on-secondary' 
+    },
+    { 
+      icon: Server, 
+      title: 'Infrastructure', 
+      desc: 'Server health and hardware lifecycle', 
+      colorClasses: 'bg-tertiary-container/20 text-tertiary group-hover:bg-tertiary group-hover:text-on-tertiary' 
+    },
+    { 
+      icon: ShieldCheck, 
+      title: 'License & Compliance', 
+      desc: 'Audit trails and software entitlements', 
+      colorClasses: 'bg-error-container/10 text-error group-hover:bg-error group-hover:text-on-error' 
+    },
+    { 
+      icon: Headset, 
+      title: 'Helpdesk', 
+      desc: 'Incident response and ticket queue', 
+      colorClasses: 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 group-hover:bg-blue-700 group-hover:text-white' 
+    },
+    { 
+      icon: Activity, 
+      title: 'Monitoring Tools', 
+      desc: 'Real-time telemetry and log analysis', 
+      colorClasses: 'bg-amber-50 dark:bg-amber-900/10 text-amber-700 group-hover:bg-amber-600 group-hover:text-white' 
+    },
+    { 
+      icon: Gauge,
+      title: 'PRF Monitoring', 
+      desc: 'High-precision performance monitoring and frequency analysis.', 
+      colorClasses: 'bg-indigo-50 dark:bg-indigo-900/10 text-indigo-700 group-hover:bg-indigo-700 group-hover:text-white' 
+    },
   ];
 
-  const getColorClasses = (color: string) => {
-    switch (color) {
-      case 'primary': return 'text-primary bg-primary-container/30 group-hover:bg-primary group-hover:text-on-primary';
-      case 'secondary': return 'text-secondary bg-secondary-container/30 group-hover:bg-secondary group-hover:text-on-secondary';
-      case 'tertiary': return 'text-tertiary bg-tertiary-container/30 group-hover:bg-tertiary group-hover:text-on-tertiary';
-      case 'error': return 'text-error bg-error-container/20 group-hover:bg-error group-hover:text-on-error';
-      default: return 'text-primary bg-primary-container/30 group-hover:bg-primary group-hover:text-on-primary';
-    }
-  };
-
   return (
-    <div className="max-w-md mx-auto px-6 pt-8 pb-32">
+    <div className="max-w-md mx-auto px-6 pt-8 pb-12">
       {/* Hero Section */}
       <section className="mb-10">
         <div className="relative overflow-hidden rounded-3xl aspect-[16/9] mb-6 shadow-xl">
@@ -34,11 +60,11 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
             alt="Network Core" 
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-inverse-surface/90 to-transparent flex flex-col justify-end p-6">
+          <div className="absolute inset-0 bg-gradient-to-t from-inverse-surface/80 to-transparent flex flex-col justify-end p-6">
             <span className="text-tertiary-fixed font-label text-[10px] uppercase tracking-[0.2em] mb-2">System Status</span>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-tertiary/20 backdrop-blur-md border border-tertiary/30 rounded-full">
-                <span className="w-2 h-2 bg-tertiary-fixed-dim rounded-full animate-pulse shadow-[0_0_8px_rgba(88,231,171,0.8)]"></span>
+              <div className="flex items-center gap-2 px-3 py-1 bg-tertiary/20 backdrop-blur-md border border-tertiary/30 rounded-full">
+                <span className="w-2 h-2 bg-tertiary-fixed-dim rounded-full animate-pulse"></span>
                 <span className="text-tertiary-fixed text-xs font-semibold">ALL SYSTEMS ONLINE</span>
               </div>
             </div>
@@ -47,7 +73,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
         
         <div className="flex flex-col gap-1">
           <h2 className="font-headline font-extrabold text-3xl text-on-surface tracking-tight">Feature Hub</h2>
-          <p className="text-on-surface-variant text-sm leading-relaxed">Centralized control for your enterprise infrastructure.</p>
+          <p className="text-on-surface-variant text-base leading-relaxed">Centralized control for your enterprise infrastructure.</p>
         </div>
       </section>
 
@@ -59,13 +85,14 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
             <button 
               key={idx} 
               onClick={() => {
-                if (feature.title === 'User Management' && onNavigate) {
-                  onNavigate('user-management');
+                if (onNavigate) {
+                  if (feature.title === 'User Management') onNavigate('user-management');
+                  if (feature.title === 'PRF Monitoring') onNavigate('prf-monitoring');
                 }
               }}
               className="bg-surface-container-lowest p-5 rounded-2xl shadow-[0_8px_24px_rgba(42,52,57,0.04)] flex flex-col gap-4 border border-transparent hover:border-primary/10 transition-all active:scale-95 group text-left"
             >
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${getColorClasses(feature.color)}`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${feature.colorClasses}`}>
                 <Icon className="w-6 h-6" />
               </div>
               <div>
@@ -77,7 +104,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
         })}
       </div>
 
-      {/* Recent Alerts */}
+      {/* Recent Activity Asymmetric Layout */}
       <section className="mt-12">
         <div className="flex justify-between items-end mb-6">
           <h2 className="font-headline font-bold text-xl text-on-surface">Recent Alerts</h2>
@@ -86,7 +113,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
         
         <div className="space-y-4">
           <div className="bg-surface-container-low p-4 rounded-3xl flex items-center gap-4">
-            <div className="w-1.5 h-10 bg-error rounded-full"></div>
+            <div className="w-2 h-10 bg-error rounded-full"></div>
             <div className="flex-1">
               <p className="text-on-surface font-semibold text-sm">Critical Latency Detected</p>
               <p className="text-on-surface-variant text-xs mt-0.5">Node: NYC-CORE-04 • 2m ago</p>
@@ -95,7 +122,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
           </div>
           
           <div className="bg-surface-container-lowest p-4 rounded-3xl flex items-center gap-4 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
-            <div className="w-1.5 h-10 bg-tertiary rounded-full"></div>
+            <div className="w-2 h-10 bg-tertiary rounded-full"></div>
             <div className="flex-1">
               <p className="text-on-surface font-semibold text-sm">Patch Deployment Success</p>
               <p className="text-on-surface-variant text-xs mt-0.5">Vulnerability fix applied to 142 endpoints</p>
