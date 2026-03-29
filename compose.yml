@@ -3,10 +3,11 @@ services:
     build:
       context: ./backend
       target: dev
-    env_file:
-      - ./backend/.env
     ports:
       - "8080:8080"
+    environment:
+      PORT: "8080"
+      CORS_ORIGIN: "*"
     volumes:
       - ./backend:/app
       - /app/node_modules
