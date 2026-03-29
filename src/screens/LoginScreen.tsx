@@ -1,3 +1,4 @@
+import React from 'react';
 import { Shield, HelpCircle, Terminal, User, Lock, EyeOff, ArrowRight, Key } from 'lucide-react';
 
 interface LoginScreenProps {

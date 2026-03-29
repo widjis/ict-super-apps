@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import TopBar from './components/TopBar';
 import BottomNav from './components/BottomNav';
 import HomeScreen from './screens/HomeScreen';
@@ -68,8 +69,8 @@ export default function App() {
           <>
             <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
               <div className="flex items-center gap-4">
-                <button onClick={() => setActiveTab('wifi-network')} className="material-symbols-outlined text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
-                  arrow_back
+                <button onClick={() => setActiveTab('wifi-network')} className="text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
+                  <ArrowLeft className="w-6 h-6" />
                 </button>
                 <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
               </div>
@@ -83,8 +84,8 @@ export default function App() {
           <>
             <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
               <div className="flex items-center gap-4">
-                <button onClick={() => setActiveTab('wifi-network')} className="material-symbols-outlined text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
-                  arrow_back
+                <button onClick={() => setActiveTab('wifi-network')} className="text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
+                  <ArrowLeft className="w-6 h-6" />
                 </button>
                 <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
               </div>
@@ -98,8 +99,8 @@ export default function App() {
           <>
             <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
               <div className="flex items-center gap-4">
-                <button onClick={() => setActiveTab('wifi-network')} className="material-symbols-outlined text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
-                  arrow_back
+                <button onClick={() => setActiveTab('wifi-network')} className="text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
+                  <ArrowLeft className="w-6 h-6" />
                 </button>
                 <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
               </div>
