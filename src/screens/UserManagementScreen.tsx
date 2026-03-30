@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Info, Search, Unlock, UserPlus } from 'lucide-react';
-import { authedGetJson } from '../lib/http';
+import { authedGetJson, authedPostJson } from '../lib/http';
 
 interface UserManagementScreenProps {
   onOpenUser?: (samAccountName: string) => void;
@@ -60,7 +60,7 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
     setError(null);
     setLoading(true);
     try {
-      await authedGetJson(`/api/ad/users/${encodeURIComponent(samAccountName)}/unlock`);
+      await authedPostJson(`/api/ad/users/${encodeURIComponent(samAccountName)}/unlock`);
       const data = await authedGetJson('/api/ad/users', { query, activeOnly: activeOnly ? 'true' : '' });
       const list = Array.isArray(data?.users) ? data.users : [];
       setUsers(list);
@@ -190,10 +190,18 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (!isLocked) {
+                      setError('Account is not locked.');
+                      return;
+                    }
                     void onUnlock(u.id);
                   }}
-                  disabled={loading || !isLocked}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 ${isLocked ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-surface-container-low text-on-surface opacity-60'}`}
+                  disabled={loading || isDisabled}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 ${
+                    isLocked
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                      : 'bg-surface-container-low hover:bg-surface-container-high text-on-surface'
+                  } ${isDisabled ? 'opacity-60' : ''}`}
                 >
                   <Unlock className="w-4 h-4" />
                   Unlock Account

@@ -79,20 +79,22 @@ export default function UserProfileScreen({ onBack, samAccountName }: UserProfil
 
   const mobileNumber = useMemo(() => {
     const raw = user?.mobile;
-    if (!raw) return null;
-    const digits = raw.replace(/[^\d+]/g, '').replace(/^\+/, '');
+    if (raw == null) return null;
+    const digits = String(raw).replace(/[^\d+]/g, '').replace(/^\+/, '');
     if (!digits) return null;
     if (digits.startsWith('0')) return `62${digits.slice(1)}`;
     return digits;
   }, [user?.mobile]);
 
-  const copyValue = async (key: string, value: string) => {
+  const copyValue = async (key: string, value: unknown) => {
+    if (value == null) return;
+    const text = String(value);
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value);
+        await navigator.clipboard.writeText(text);
       } else {
         const el = document.createElement('textarea');
-        el.value = value;
+        el.value = text;
         el.style.position = 'fixed';
         el.style.left = '-9999px';
         document.body.appendChild(el);

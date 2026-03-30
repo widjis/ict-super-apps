@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, MoreHorizontal, Search, SlidersHorizontal, Briefcase, RefreshCw, FileText, Download, Eye, MessageSquare, Hourglass, CheckCircle, Settings, FileUp, User } from 'lucide-react';
 import { getAuthUserRaw } from '../auth/storage';
-import { getSelectedPomonPrfId, pomonDownloadPrfDocument, pomonGetPrfWithItems, pomonListPrfDocuments, pomonUpdatePrfItem, pomonViewPrfDocument, type PomonPrfDocument, type PomonPrfWithItems } from '../lib/pomon-api';
+import { listCheckGoodsForPrf, upsertCheckGoodsForItem, type CheckGoodsRecord } from '../lib/check-goods-api';
+import { getSelectedPomonPrfId, pomonDownloadPrfDocument, pomonGetPrfWithItems, pomonListPrfDocuments, pomonViewPrfDocument, type PomonPrfDocument, type PomonPrfWithItems } from '../lib/pomon-api';
 
 interface PrfDetailsScreenProps {
   onBack: () => void;
@@ -16,7 +17,11 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const [documents, setDocuments] = useState<PomonPrfDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
-  const [itemActionId, setItemActionId] = useState<number | null>(null);
+  const [checkItem, setCheckItem] = useState<any | null>(null);
+  const [checkStatus, setCheckStatus] = useState<string>('Pending');
+  const [checkNotes, setCheckNotes] = useState<string>('');
+  const [checkSaving, setCheckSaving] = useState(false);
+  const [checkMap, setCheckMap] = useState<Record<number, CheckGoodsRecord>>({});
 
   const prfId = useMemo(() => getSelectedPomonPrfId(), []);
   const currency = useMemo(() => {
@@ -43,6 +48,10 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
         : typeof currentUser?.upn === 'string'
           ? currentUser.upn
           : null;
+
+  const statusOptions = useMemo(() => {
+    return ['Pending', 'Verified', 'Issue', 'Picked Up'];
+  }, []);
 
   const refreshPrf = async () => {
     if (!prfId) return;
@@ -112,6 +121,21 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
     void refreshDocuments();
   }, [prfId]);
 
+  useEffect(() => {
+    if (!prfId) return;
+    void (async () => {
+      try {
+        const resp = await listCheckGoodsForPrf(prfId);
+        if (!resp?.ok || !Array.isArray(resp.data)) return;
+        const m: Record<number, CheckGoodsRecord> = {};
+        for (const r of resp.data) {
+          if (typeof r?.prf_item_id === 'number') m[r.prf_item_id] = r;
+        }
+        setCheckMap(m);
+      } catch {}
+    })();
+  }, [prfId]);
+
   const prfNo = typeof prf?.PRFNo === 'string' ? prf?.PRFNo : null;
   const submitBy = typeof prf?.SubmitBy === 'string' ? prf?.SubmitBy : null;
   const submittedAtRaw = typeof prf?.DateSubmit === 'string' ? prf.DateSubmit : typeof prf?.RequestDate === 'string' ? prf.RequestDate : null;
@@ -142,6 +166,22 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
       return values.some((s) => s.includes(q));
     });
   }, [itemSearch, items]);
+
+  const openCheckGoods = (it: any) => {
+    setError(null);
+    setCheckItem(it);
+    const itemId = typeof it?.PRFItemID === 'number' ? it.PRFItemID : null;
+    const existing = itemId ? checkMap[itemId] : undefined;
+    const curStatus = existing?.check_status ?? 'Pending';
+    setCheckStatus(curStatus);
+    const curNotes = existing?.notes ?? '';
+    setCheckNotes(curNotes);
+  };
+
+  const closeCheckGoods = () => {
+    if (checkSaving) return;
+    setCheckItem(null);
+  };
 
   const activity = useMemo(() => {
     const list: Array<{ t: number; title: string; subtitle?: string; kind: 'submitted' | 'document' | 'split' | 'picked' | 'status' }> = [];
@@ -341,6 +381,10 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                 const total = typeof it?.TotalPrice === 'number' ? it.TotalPrice : null;
                 const originalPo = typeof it?.OriginalPONumber === 'string' ? it.OriginalPONumber : null;
                 const splitPo = typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : null;
+                const check = itemId ? checkMap[itemId] : undefined;
+                const checkLabel = typeof check?.check_status === 'string' ? check.check_status : null;
+                const checkedAtRaw = typeof check?.checked_at === 'string' ? check.checked_at : null;
+                const checkedAt = checkedAtRaw ? new Date(checkedAtRaw) : null;
 
                 return (
                   <div key={itemId ?? name} className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
@@ -350,6 +394,11 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                         {splitPo && (
                           <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded uppercase tracking-wider border border-amber-100">
                             Split PO
+                          </span>
+                        )}
+                        {checkLabel && (
+                          <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded uppercase tracking-wider border border-indigo-100">
+                            {checkLabel}
                           </span>
                         )}
                         <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">
@@ -374,31 +423,20 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                           </span>
                         </div>
                       )}
+                      {checkedAt && Number.isFinite(checkedAt.getTime()) && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-400">Last Checked</span>
+                          <span className="text-slate-800 font-bold text-right">{checkedAt.toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
                     <button
-                      disabled={!itemId || itemActionId === itemId}
-                      onClick={() => {
-                        if (!itemId) return;
-                        setItemActionId(itemId);
-                        void (async () => {
-                          try {
-                            await pomonUpdatePrfItem(itemId, {
-                              status: 'Picked Up',
-                              pickedUpBy: displayName ?? undefined,
-                              pickedUpDate: new Date().toISOString(),
-                            });
-                            await refreshPrf();
-                          } catch {
-                            setError('Unable to update item.');
-                          } finally {
-                            setItemActionId(null);
-                          }
-                        })();
-                      }}
+                      disabled={!itemId}
+                      onClick={() => openCheckGoods(it)}
                       className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <Briefcase className="w-5 h-5" />
-                      {itemActionId === itemId ? 'Updating…' : 'Check Goods'}
+                      Check Goods
                     </button>
                   </div>
                 );
@@ -562,6 +600,100 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
           </div>
         )}
       </main>
+
+      {checkItem && (
+        <div className="fixed inset-0 z-[999]">
+          <button
+            onClick={closeCheckGoods}
+            className="absolute inset-0 bg-black/50"
+            aria-label="Close"
+          />
+          <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-[28px] p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div className="min-w-0">
+                <h3 className="text-lg font-extrabold text-slate-900 truncate">Check Goods</h3>
+                <p className="text-sm text-slate-500 truncate">
+                  {typeof checkItem?.ItemName === 'string' ? checkItem.ItemName : 'Item'}
+                </p>
+              </div>
+              <button
+                onClick={closeCheckGoods}
+                disabled={checkSaving}
+                className="h-10 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold disabled:opacity-60"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest font-bold text-slate-400 mb-2">
+                  Status
+                </label>
+                <select
+                  value={checkStatus}
+                  onChange={(e) => setCheckStatus(e.target.value)}
+                  disabled={checkSaving}
+                  className="w-full h-12 px-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-800 font-semibold outline-none focus:ring-2 focus:ring-[#3E26A8]/20"
+                >
+                  {statusOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest font-bold text-slate-400 mb-2">
+                  Notes
+                </label>
+                <textarea
+                  value={checkNotes}
+                  onChange={(e) => setCheckNotes(e.target.value)}
+                  disabled={checkSaving}
+                  rows={4}
+                  placeholder="Catatan pengecekan barang…"
+                  className="w-full px-4 py-3 bg-slate-50 rounded-2xl border border-slate-200 text-slate-800 outline-none focus:ring-2 focus:ring-[#3E26A8]/20 resize-none"
+                />
+              </div>
+
+              <button
+                disabled={checkSaving || typeof checkItem?.PRFItemID !== 'number'}
+                onClick={() => {
+                  const itemId = typeof checkItem?.PRFItemID === 'number' ? checkItem.PRFItemID : null;
+                  if (!itemId) return;
+                  if (!prfId) return;
+                  setCheckSaving(true);
+                  setError(null);
+                  void (async () => {
+                    try {
+                      const prfNo = typeof prf?.PRFNo === 'string' ? prf.PRFNo : undefined;
+                      const resp = await upsertCheckGoodsForItem(itemId, {
+                        prfId,
+                        prfNo,
+                        checkStatus,
+                        notes: checkNotes?.trim() ? checkNotes.trim() : undefined,
+                      });
+                      if (resp?.ok && resp.data) {
+                        setCheckMap((m) => ({ ...m, [itemId]: resp.data as CheckGoodsRecord }));
+                      }
+                      setCheckItem(null);
+                    } catch {
+                      setError('Unable to update item.');
+                    } finally {
+                      setCheckSaving(false);
+                    }
+                  })();
+                }}
+                className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-extrabold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {checkSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

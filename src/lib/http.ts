@@ -43,22 +43,35 @@ export async function authedFetch(path: string, init?: RequestInit & { query?: R
 }
 
 export async function authedGetJson(path: string, query?: Record<string, unknown>) {
-  const token = await getAuthToken();
-  const resp = await fetch(buildUrl(path, query), {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
-
-  const data = await resp.json().catch(() => null);
-  if (!resp.ok) {
-    const err = new Error('HTTP_ERROR');
-    (err as any).status = resp.status;
-    (err as any).data = data;
-    throw err;
-  }
-  return data;
+  return await authedRequestJson(path, { method: 'GET', query });
 }
 
 export async function authedGetBlob(path: string, query?: Record<string, unknown>) {
   const resp = await authedFetch(path, { method: 'GET', query });
   return await resp.blob();
+}
+
+export async function authedRequestJson(
+  path: string,
+  init?: RequestInit & { query?: Record<string, unknown>; bodyJson?: unknown }
+) {
+  const { bodyJson, ...rest } = (init ?? {}) as any;
+  const headers: Record<string, string> = {};
+  if (rest.headers) {
+    for (const [k, v] of Object.entries(rest.headers as any)) {
+      if (typeof v === 'string') headers[k] = v;
+    }
+  }
+  let body = rest.body;
+  if (bodyJson !== undefined) {
+    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json';
+    body = JSON.stringify(bodyJson);
+  }
+
+  const resp = await authedFetch(path, { ...rest, headers, body });
+  return await resp.json().catch(() => null);
+}
+
+export async function authedPostJson(path: string, bodyJson?: unknown, query?: Record<string, unknown>) {
+  return await authedRequestJson(path, { method: 'POST', query, bodyJson });
 }

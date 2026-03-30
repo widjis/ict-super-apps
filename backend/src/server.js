@@ -29,7 +29,8 @@ async function requireAccessToken(req, res, next) {
   if (!token) return res.status(401).json({ ok: false, error: 'MISSING_TOKEN' });
 
   try {
-    await verifyAccessToken(token);
+    const payload = await verifyAccessToken(token);
+    req.auth = payload;
     return next();
   } catch {
     return res.status(401).json({ ok: false, error: 'INVALID_TOKEN' });
@@ -255,6 +256,74 @@ app.post('/api/ad/users/:samAccountName/unlock', requireAccessToken, async (req,
     const code = typeof err?.code === 'string' ? err.code : 'AD_UNLOCK_FAILED';
     const status = code === 'LDAP_CONFIG_MISSING' ? 500 : code.startsWith('LDAP_') ? 502 : 500;
     return res.status(status).json({ ok: false, error: code });
+  }
+});
+
+app.get('/api/check-goods/prfs/:prfId', requireAccessToken, async (req, res) => {
+  const prfId = Number(req.params.prfId);
+  if (!Number.isFinite(prfId) || prfId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      'select prf_item_id, prf_id, prf_no, check_status, notes, checked_by_user_id, checked_at, updated_at from prf_item_checks where prf_id = $1 order by prf_item_id asc',
+      [prfId]
+    );
+    return res.json({ ok: true, data: rows });
+  } catch {
+    return res.status(500).json({ ok: false, error: 'DB_ERROR' });
+  }
+});
+
+app.get('/api/check-goods/items/:itemId', requireAccessToken, async (req, res) => {
+  const itemId = Number(req.params.itemId);
+  if (!Number.isFinite(itemId) || itemId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      'select prf_item_id, prf_id, prf_no, check_status, notes, checked_by_user_id, checked_at, updated_at from prf_item_checks where prf_item_id = $1 limit 1',
+      [itemId]
+    );
+    return res.json({ ok: true, data: rows[0] ?? null });
+  } catch {
+    return res.status(500).json({ ok: false, error: 'DB_ERROR' });
+  }
+});
+
+app.put('/api/check-goods/items/:itemId', requireAccessToken, async (req, res) => {
+  const itemId = Number(req.params.itemId);
+  if (!Number.isFinite(itemId) || itemId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  const prfId = typeof req.body?.prfId === 'number' ? req.body.prfId : Number(req.body?.prfId);
+  if (!Number.isFinite(prfId) || prfId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_PRF_ID' });
+
+  const prfNo = typeof req.body?.prfNo === 'string' ? req.body.prfNo.trim() : null;
+  const checkStatus = typeof req.body?.checkStatus === 'string' ? req.body.checkStatus.trim() : '';
+  if (!checkStatus) return res.status(400).json({ ok: false, error: 'INVALID_STATUS' });
+
+  const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim() : null;
+  const checkedByUserId = typeof req.auth?.sub === 'string' ? req.auth.sub : null;
+
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `insert into prf_item_checks (prf_item_id, prf_id, prf_no, check_status, notes, checked_by_user_id, checked_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, now(), now())
+       on conflict (prf_item_id) do update set
+         prf_id = excluded.prf_id,
+         prf_no = excluded.prf_no,
+         check_status = excluded.check_status,
+         notes = excluded.notes,
+         checked_by_user_id = excluded.checked_by_user_id,
+         checked_at = excluded.checked_at,
+         updated_at = now()
+       returning prf_item_id, prf_id, prf_no, check_status, notes, checked_by_user_id, checked_at, updated_at`,
+      [itemId, prfId, prfNo, checkStatus, notes, checkedByUserId]
+    );
+    return res.json({ ok: true, data: rows[0] ?? null });
+  } catch {
+    return res.status(500).json({ ok: false, error: 'DB_ERROR' });
   }
 });
 
