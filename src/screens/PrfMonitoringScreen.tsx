@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Search, ChevronDown, Building2, User, Cpu, Palette } from 'lucide-react';
-import { pomonListPrfs, setSelectedPomonPrfId, type PomonPrfSummary } from '../lib/pomon-api';
+import { pomonGetStatusFilters, pomonListPrfs, pomonListPrfsWithItems, setSelectedPomonPrfId, type PomonPrfSummary } from '../lib/pomon-api';
 
 interface PrfMonitoringScreenProps {
   onNavigate?: (screen: string) => void;
@@ -9,11 +9,51 @@ interface PrfMonitoringScreenProps {
 export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenProps) {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [status, setStatus] = useState<'all' | 'Req. Approved' | 'Req. Approval Reqd'>('all');
+  const [status, setStatus] = useState<string>('all');
+  const [statusOptions, setStatusOptions] = useState<string[]>([]);
+  const [splitOnly, setSplitOnly] = useState(false);
   const [department, setDepartment] = useState('All Departments');
   const [items, setItems] = useState<PomonPrfSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const normalize = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+  const matchesSearch = (prf: PomonPrfSummary, q: string) => {
+    const query = q.trim().toLowerCase();
+    if (!query) return true;
+    const values: string[] = [
+      normalize(prf.PRFNo),
+      normalize(prf.Title),
+      normalize((prf as any).RequestorName),
+      normalize(prf.PurchaseCostCode),
+    ];
+
+    const list = (prf as any)?.Items;
+    if (Array.isArray(list)) {
+      for (const it of list) {
+        values.push(
+          normalize(it?.ItemName),
+          normalize(it?.Description),
+          normalize(it?.OriginalPONumber),
+          normalize(it?.SplitPONumber)
+        );
+      }
+    }
+
+    const lowered = values.filter(Boolean).map((s) => s.toLowerCase());
+    if (lowered.some((s) => s.includes(query))) return true;
+
+    const compactQuery = query.replace(/\s+/g, '');
+    if (!compactQuery) return false;
+    return lowered.some((s) => s.replace(/\s+/g, '').includes(compactQuery));
+  };
+
+  const isSplitPrf = (prf: PomonPrfSummary) => {
+    const list = (prf as any)?.Items;
+    if (!Array.isArray(list)) return false;
+    return list.some((it: any) => typeof it?.SplitPONumber === 'string' && it.SplitPONumber.trim().length > 0);
+  };
 
   const currency = useMemo(() => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
@@ -26,11 +66,59 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
 
   useEffect(() => {
     let active = true;
+    void (async () => {
+      try {
+        const resp = await pomonGetStatusFilters();
+        if (!active) return;
+        if (!resp?.success || !Array.isArray(resp.data)) return;
+        const cleaned = resp.data
+          .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+          .map((s) => s.trim());
+        setStatusOptions(Array.from(new Set(cleaned)));
+      } catch {}
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     setLoading(true);
     setError(null);
 
     void (async () => {
       try {
+        if (splitOnly || debouncedSearch) {
+          const resp = await pomonListPrfsWithItems({ limit: debouncedSearch ? 200 : 50 });
+          if (!active) return;
+          if (!resp?.success || !Array.isArray(resp.data)) {
+            setError('Unable to load PRFs.');
+            setItems([]);
+            return;
+          }
+
+          let list = resp.data as unknown as PomonPrfSummary[];
+
+          if (status !== 'all') {
+            list = list.filter((p) => normalize((p as any).Status) === status);
+          }
+
+          if (department !== 'All Departments') {
+            list = list.filter((p) => normalize((p as any).Department) === department);
+          }
+
+          if (debouncedSearch) {
+            list = list.filter((p) => matchesSearch(p, debouncedSearch));
+          }
+
+          if (splitOnly) {
+            list = list.filter((p) => isSplitPrf(p));
+          }
+          setItems(list);
+          return;
+        }
+
         const resp = await pomonListPrfs({
           limit: 50,
           status: status === 'all' ? undefined : status,
@@ -58,7 +146,7 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
     return () => {
       active = false;
     };
-  }, [status, department, debouncedSearch]);
+  }, [status, department, debouncedSearch, splitOnly]);
 
   const departmentOptions = useMemo(() => {
     const base = ['All Departments', 'HR', 'ICT', 'Finance', 'Operations'];
@@ -132,25 +220,28 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
               All PRFs
             </button>
             <button
-              onClick={() => setStatus('Req. Approved')}
+              onClick={() => setSplitOnly((v) => !v)}
               className={`whitespace-nowrap px-5 py-2 rounded-full text-sm transition-all ${
-                status === 'Req. Approved'
+                splitOnly
                   ? 'bg-primary text-on-primary font-semibold'
                   : 'bg-surface-container-high text-on-surface-variant font-medium hover:bg-surface-container-highest'
               }`}
             >
-              Req. Approved
+              Split PO
             </button>
-            <button
-              onClick={() => setStatus('Req. Approval Reqd')}
-              className={`whitespace-nowrap px-5 py-2 rounded-full text-sm transition-all ${
-                status === 'Req. Approval Reqd'
-                  ? 'bg-primary text-on-primary font-semibold'
-                  : 'bg-surface-container-high text-on-surface-variant font-medium hover:bg-surface-container-highest'
-              }`}
-            >
-              Req. Approval Reqd
-            </button>
+            {statusOptions.map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatus(s)}
+                className={`whitespace-nowrap px-5 py-2 rounded-full text-sm transition-all ${
+                  status === s
+                    ? 'bg-primary text-on-primary font-semibold'
+                    : 'bg-surface-container-high text-on-surface-variant font-medium hover:bg-surface-container-highest'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
           </div>
           <div className="relative inline-block w-full md:w-64">
             <select
@@ -202,6 +293,7 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
           const statusLabel = typeof prf.Status === 'string' ? prf.Status : '';
           const priorityLabel = typeof prf.Priority === 'string' ? prf.Priority : '';
           const requested = typeof prf.RequestedAmount === 'number' ? prf.RequestedAmount : null;
+          const isSplit = splitOnly ? true : isSplitPrf(prf);
 
           return (
             <div
@@ -218,6 +310,11 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
                   <h2 className="font-headline text-2xl font-extrabold text-on-surface">{prfNo}</h2>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {isSplit && (
+                    <span className="px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-full uppercase tracking-wider border border-amber-100">
+                      Split PO
+                    </span>
+                  )}
                   {statusLabel && (
                     <span
                       className={`px-3 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider ${getStatusClasses(

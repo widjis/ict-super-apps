@@ -1,10 +1,76 @@
-import { Search, Info, UserPlus, Unlock, RotateCcw } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Info, Search, Unlock, UserPlus } from 'lucide-react';
+import { authedGetJson } from '../lib/http';
 
 interface UserManagementScreenProps {
-  onNavigate?: (screen: string) => void;
+  onOpenUser?: (samAccountName: string) => void;
 }
 
-export default function UserManagementScreen({ onNavigate }: UserManagementScreenProps) {
+type DirectoryUser = {
+  id: string;
+  displayName: string | null;
+  title: string | null;
+  department: string | null;
+  email: string | null;
+  upn: string | null;
+  status: 'ACTIVE' | 'LOCKED' | 'DISABLED';
+};
+
+export default function UserManagementScreen({ onOpenUser }: UserManagementScreenProps) {
+  const [query, setQuery] = useState('');
+  const [activeOnly, setActiveOnly] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [users, setUsers] = useState<DirectoryUser[]>([]);
+
+  const statusPill = useMemo(() => {
+    return activeOnly ? 'Active Only' : 'All Users';
+  }, [activeOnly]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const data = await authedGetJson('/api/ad/users', { query, activeOnly: activeOnly ? 'true' : '' });
+          if (!active) return;
+          const list = Array.isArray(data?.users) ? data.users : [];
+          setUsers(list);
+        } catch {
+          if (!active) return;
+          setError('Failed to load users from Active Directory.');
+          setUsers([]);
+        } finally {
+          if (!active) return;
+          setLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
+  }, [query, activeOnly]);
+
+  const onUnlock = async (samAccountName: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await authedGetJson(`/api/ad/users/${encodeURIComponent(samAccountName)}/unlock`);
+      const data = await authedGetJson('/api/ad/users', { query, activeOnly: activeOnly ? 'true' : '' });
+      const list = Array.isArray(data?.users) ? data.users : [];
+      setUsers(list);
+    } catch {
+      setError('Failed to unlock account.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-6 pt-6 pb-32">
       {/* Editorial Header Section */}
@@ -25,181 +91,117 @@ export default function UserManagementScreen({ onNavigate }: UserManagementScree
           <input 
             type="text" 
             placeholder="Search by name, email, or role..." 
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all duration-250 text-on-surface placeholder:text-outline shadow-sm outline-none"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          <span className="px-4 py-2 bg-primary text-on-primary rounded-full text-xs font-semibold whitespace-nowrap cursor-pointer">All Users</span>
-          <span className="px-4 py-2 bg-surface-container-low text-on-surface-variant rounded-full text-xs font-semibold whitespace-nowrap hover:bg-surface-container-high transition-colors cursor-pointer">Active Only</span>
-          <span className="px-4 py-2 bg-surface-container-low text-on-surface-variant rounded-full text-xs font-semibold whitespace-nowrap hover:bg-surface-container-high transition-colors cursor-pointer">Engineering</span>
-          <span className="px-4 py-2 bg-surface-container-low text-on-surface-variant rounded-full text-xs font-semibold whitespace-nowrap hover:bg-surface-container-high transition-colors cursor-pointer">Security</span>
+          <button
+            type="button"
+            onClick={() => setActiveOnly(false)}
+            className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${!activeOnly ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'}`}
+          >
+            All Users
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveOnly(true)}
+            className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${activeOnly ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'}`}
+          >
+            Active Only
+          </button>
         </div>
       </section>
 
       {/* User List Section */}
       <section className="space-y-4">
         <div className="flex justify-between items-end mb-2">
-          <h3 className="font-headline font-bold text-lg text-on-surface">Directory (4)</h3>
-          <span className="text-label text-on-surface-variant font-medium uppercase tracking-wider text-[10px]">Sorted by activity</span>
+          <h3 className="font-headline font-bold text-lg text-on-surface">Directory ({users.length})</h3>
+          <span className="text-label text-on-surface-variant font-medium uppercase tracking-wider text-[10px]">{statusPill}</span>
         </div>
 
-        {/* User Card 1 */}
-        <div 
-          onClick={() => onNavigate?.('user-profile')}
-          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all cursor-pointer hover:bg-surface-container-lowest/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvuCJHJ_Xct6qTxiOs6W6p7QxbrG0M8J9fGv7YbxYmDj_3bnRUtZhMk0rmDQN68t60-bycZxI7fCAVaDt7PYACTKpmVEXLBOSr8P1VYoLvnk5nSVVZ1guVo7Mg0H0k8NAkfIRjcqjWyJzGJSm0auNj9ZL7rRW28QBNApUvY4OJ1hrzIt2HS36UlBkR6Knbtk3sovwvI-bb_Vlj0GPw6PQqFI-YPAe_KnshX-xEzvs5MahGKBajgf8Y34RIgAN1RJ7e82r3Em3S-jQ" alt="Sarah Jenkins" className="w-12 h-12 rounded-xl object-cover shadow-sm" />
-                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-[0_0_0_2px_rgba(16,185,129,0.2)] animate-pulse"></div>
-              </div>
-              <div>
-                <h4 className="font-headline font-bold text-on-surface group-hover:text-primary transition-colors">Sarah Jenkins</h4>
-                <p className="text-xs text-on-surface-variant font-medium">Cloud Infrastructure</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">Active</span>
-            </div>
+        {error && (
+          <div className="bg-error-container/25 text-on-error-container px-4 py-3 rounded-xl text-sm font-medium">
+            {error}
           </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset Password
-            </button>
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
-            >
-              <Unlock className="w-4 h-4" />
-              Unlock Account
-            </button>
-          </div>
-        </div>
+        )}
 
-        {/* User Card 2 (Locked/Inactive) */}
-        <div 
-          onClick={() => onNavigate?.('user-profile')}
-          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all opacity-90 cursor-pointer hover:bg-surface-container-lowest/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDw0tXbS7tEK85BrRtmiC86_cxFZ1zne1_OKLnYfbFTNRdqonCDIhvOi9BsREz5GpEp4ZDiF-MhOB2LInLGF3WdlM4vbDjkedViPvV0EussB13cOI_Eo-bxjJgutkH5y6ggkiyxcIamUyFhq3TjbHJR8t1c4Yfl_MS12fX8p8s8VLGglC5aJZeZlw98JdWHgdIwqjx407lE6qx8V2J-T1lJhowd7BVYjzxrI_K21BZP7ZSlqD0sx77dTiZOVzJwmm1e4pHCqv9_6Gk" alt="Marcus Thorne" className="w-12 h-12 rounded-xl object-cover shadow-sm grayscale-[50%]" />
-                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-400 border-2 border-white"></div>
-              </div>
-              <div>
-                <h4 className="font-headline font-bold text-on-surface group-hover:text-primary transition-colors">Marcus Thorne</h4>
-                <p className="text-xs text-on-surface-variant font-medium">Cybersecurity Lead</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 bg-red-50 px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
-              <span className="text-[10px] font-bold text-red-600 uppercase tracking-tight">Locked</span>
-            </div>
+        {loading && (
+          <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high">
+            <span className="text-sm text-on-surface-variant font-medium">Loading...</span>
           </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset Password
-            </button>
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm"
-            >
-              <Unlock className="w-4 h-4" />
-              Unlock Account
-            </button>
-          </div>
-        </div>
+        )}
 
-        {/* User Card 3 */}
-        <div 
-          onClick={() => onNavigate?.('user-profile')}
-          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all cursor-pointer hover:bg-surface-container-lowest/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuANUsMwIRLw9iemErsCBCgTZArIV98dhVxogl0cJqiMdwOQ6QdSiZwqP90BFBlSzbM5vosThfEXAAVSg0grRi8YUun6hC3IlDzyJAiTaYXxB8tA5w6hAwZYAtvkO6hWlir_XPmOt4VHLCAB_ZlFfkLoeUC9AxtFWTyX250eOcqt3NwfDPO_wwUODgsejbB-k6jUkE8CULmQ1cX8JranzGa5VGVdMBSecwv97rpw8-8LoWLsJ23naDaPbto426ue7D2bxr21BuW90_0" alt="Elena Rodriguez" className="w-12 h-12 rounded-xl object-cover shadow-sm" />
-                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-[0_0_0_2px_rgba(16,185,129,0.2)] animate-pulse"></div>
-              </div>
-              <div>
-                <h4 className="font-headline font-bold text-on-surface group-hover:text-primary transition-colors">Elena Rodriguez</h4>
-                <p className="text-xs text-on-surface-variant font-medium">Network Architecture</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">Active</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset Password
-            </button>
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
-            >
-              <Unlock className="w-4 h-4" />
-              Unlock Account
-            </button>
-          </div>
-        </div>
+        {!loading && users.map((u) => {
+          const isLocked = u.status === 'LOCKED';
+          const isDisabled = u.status === 'DISABLED';
+          const badgeClasses = isLocked
+            ? 'bg-red-50 text-red-600'
+            : isDisabled
+              ? 'bg-slate-100 text-slate-600'
+              : 'bg-emerald-50 text-emerald-600';
+          const dotClasses = isLocked ? 'bg-red-400' : isDisabled ? 'bg-slate-400' : 'bg-emerald-500';
+          const label = isLocked ? 'Locked' : isDisabled ? 'Disabled' : 'Active';
 
-        {/* User Card 4 */}
-        <div 
-          onClick={() => onNavigate?.('user-profile')}
-          className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all cursor-pointer hover:bg-surface-container-lowest/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-xl bg-primary-container/30 flex items-center justify-center">
-                  <span className="text-primary font-bold text-lg">DK</span>
+          const initials = (u.displayName || u.id)
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((p) => p[0]?.toUpperCase())
+            .join('');
+
+          return (
+            <div
+              key={u.id}
+              onClick={() => onOpenUser?.(u.id)}
+              className={`bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_12px_rgba(42,52,57,0.04)] border border-surface-container-high group transition-all cursor-pointer hover:bg-surface-container-lowest/50 ${isDisabled ? 'opacity-90' : ''}`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-xl bg-primary-container/30 flex items-center justify-center">
+                      <span className="text-primary font-bold text-lg">{initials || 'AD'}</span>
+                    </div>
+                    <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ${dotClasses} border-2 border-white ${!isLocked && !isDisabled ? 'shadow-[0_0_0_2px_rgba(16,185,129,0.2)] animate-pulse' : ''}`}></div>
+                  </div>
+                  <div>
+                    <h4 className="font-headline font-bold text-on-surface group-hover:text-primary transition-colors">{u.displayName || u.id}</h4>
+                    <p className="text-xs text-on-surface-variant font-medium">{u.title || u.department || u.upn || '-'}</p>
+                  </div>
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-[0_0_0_2px_rgba(16,185,129,0.2)] animate-pulse"></div>
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full ${badgeClasses}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${dotClasses}`}></span>
+                  <span className="text-[10px] font-bold uppercase tracking-tight">{label}</span>
+                </div>
               </div>
-              <div>
-                <h4 className="font-headline font-bold text-on-surface group-hover:text-primary transition-colors">David Kim</h4>
-                <p className="text-xs text-on-surface-variant font-medium">Junior SysOps</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  disabled
+                  className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all opacity-60"
+                >
+                  Reset Password
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void onUnlock(u.id);
+                  }}
+                  disabled={loading || !isLocked}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 ${isLocked ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' : 'bg-surface-container-low text-on-surface opacity-60'}`}
+                >
+                  <Unlock className="w-4 h-4" />
+                  Unlock Account
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">Active</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset Password
-            </button>
-            <button 
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-2 bg-surface-container-low hover:bg-surface-container-high text-on-surface px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95"
-            >
-              <Unlock className="w-4 h-4" />
-              Unlock Account
-            </button>
-          </div>
-        </div>
+          );
+        })}
       </section>
 
       {/* Floating Action Button */}

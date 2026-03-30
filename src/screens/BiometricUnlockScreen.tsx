@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Fingerprint, LogOut, RefreshCw } from 'lucide-react';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
+import { getCopyrightText } from '../lib/copyright';
 
 interface BiometricUnlockScreenProps {
   onUnlocked: () => void;
@@ -129,11 +130,10 @@ export default function BiometricUnlockScreen({ onUnlocked, onLogout }: Biometri
       <footer className="w-full py-12 bg-slate-50 mt-auto">
         <div className="flex flex-col items-center gap-4 w-full px-8">
           <p className="font-label text-[11px] uppercase tracking-widest text-slate-400 text-center">
-            © 2024 Slate Nexus Enterprise. Precision ICT Operations.
+            {getCopyrightText()}
           </p>
         </div>
       </footer>
     </div>
   );
 }
-

@@ -1,10 +1,118 @@
-import { ArrowLeft, MoreVertical, Verified, Contact, Mail, Phone, Network, BadgeInfo, ShieldAlert, History, UserCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, BadgeInfo, Contact, Copy, History, Mail, MessageCircle, MoreVertical, Network, Phone, ShieldAlert, Verified } from 'lucide-react';
+import { authedGetJson } from '../lib/http';
 
 interface UserProfileScreenProps {
   onBack: () => void;
+  samAccountName: string;
 }
 
-export default function UserProfileScreen({ onBack }: UserProfileScreenProps) {
+type AdUserDetails = {
+  id: string;
+  displayName: string | null;
+  title: string | null;
+  department: string | null;
+  upn: string | null;
+  email: string | null;
+  mobile: string | null;
+  employeeId: string | null;
+  status: 'ACTIVE' | 'LOCKED' | 'DISABLED';
+  lastPasswordChange: string | null;
+  passwordExpiry: string | null;
+  passwordExpiresInDays: number | null;
+};
+
+function formatDateTime(value: string | null) {
+  if (!value) return 'Not available';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Not available';
+  return d.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatExpiry(value: string | null, days: number | null) {
+  if (!value || days == null) return 'Not available';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Not available';
+  const monthDay = d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+  if (days < 0) return `Expired (${monthDay})`;
+  return `Expires in ${days} days (${monthDay})`;
+}
+
+export default function UserProfileScreen({ onBack, samAccountName }: UserProfileScreenProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<AdUserDetails | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const initials = useMemo(() => {
+    const label = user?.displayName || user?.id || samAccountName;
+    return label
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase())
+      .join('');
+  }, [user, samAccountName]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const data = await authedGetJson(`/api/ad/users/${encodeURIComponent(samAccountName)}`);
+        if (!active) return;
+        setUser(data?.user ?? null);
+      } catch {
+        if (!active) return;
+        setError('Failed to load user details from Active Directory.');
+        setUser(null);
+      } finally {
+        if (!active) return;
+        setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [samAccountName]);
+
+  const mobileNumber = useMemo(() => {
+    const raw = user?.mobile;
+    if (!raw) return null;
+    const digits = raw.replace(/[^\d+]/g, '').replace(/^\+/, '');
+    if (!digits) return null;
+    if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+    return digits;
+  }, [user?.mobile]);
+
+  const copyValue = async (key: string, value: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const el = document.createElement('textarea');
+        el.value = value;
+        el.style.position = 'fixed';
+        el.style.left = '-9999px';
+        document.body.appendChild(el);
+        el.focus();
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey((cur) => (cur === key ? null : cur)), 1200);
+    } catch {
+      setError('Failed to copy value.');
+    }
+  };
+
+  const openWhatsapp = () => {
+    if (!mobileNumber) return;
+    window.open(`https://wa.me/${encodeURIComponent(mobileNumber)}`, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="bg-surface font-body text-on-surface min-h-screen">
       {/* TopAppBar */}
@@ -26,23 +134,27 @@ export default function UserProfileScreen({ onBack }: UserProfileScreenProps) {
       </header>
 
       <main className="pt-24 pb-32 px-6 max-w-2xl mx-auto space-y-8">
+        {error && (
+          <div className="bg-error-container/25 text-on-error-container px-4 py-3 rounded-xl text-sm font-medium">
+            {error}
+          </div>
+        )}
+
         {/* Hero Profile Section */}
         <section className="flex flex-col items-center text-center space-y-4">
           <div className="relative group">
             <div className="w-32 h-32 rounded-2xl overflow-hidden shadow-lg border-4 border-surface-container-lowest">
-              <img 
-                alt="User Profile Photo" 
-                className="w-full h-full object-cover" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtbV3GNg3wo7AhXxgIJn0YY4dkeChQKIhXMeFpDCINPBOntH0H7BJhbMYDtexFQxib3H0w4usl8n6Rnq1LcM0A-TrhIFFpffpQNW6c-czB78dRMwZBEaRaq6-xMwvU80ysolsPUMzaa9s-5HQVyc0_0sVWyICn0rBq9F__kOz6otTYoYtDPZ1_k8nIqZ4vnxiQ-zxOXsUqdiXDN54mT6VgPcRzF-AfHYak81aH8JsEAu4NcwypolM5biv25ADdV0I7QF5fkGSbiyc"
-              />
+              <div className="w-full h-full bg-primary-container/30 flex items-center justify-center">
+                <span className="text-primary font-extrabold text-4xl">{initials || 'AD'}</span>
+              </div>
             </div>
             <div className="absolute -bottom-2 -right-2 bg-tertiary text-on-tertiary p-1.5 rounded-lg shadow-md border-2 border-surface-container-lowest">
               <Verified className="w-5 h-5" />
             </div>
           </div>
           <div className="space-y-1">
-            <h2 className="font-headline font-extrabold text-2xl tracking-tight text-on-surface">Alexander Sterling</h2>
-            <p className="font-body text-on-surface-variant font-medium">Senior Solutions Architect</p>
+            <h2 className="font-headline font-extrabold text-2xl tracking-tight text-on-surface">{user?.displayName || samAccountName}</h2>
+            <p className="font-body text-on-surface-variant font-medium">{user?.title || user?.department || samAccountName}</p>
           </div>
         </section>
 
@@ -61,27 +173,76 @@ export default function UserProfileScreen({ onBack }: UserProfileScreenProps) {
                 <div className="p-2.5 bg-secondary-container/50 rounded-xl">
                   <Mail className="w-5 h-5 text-on-secondary-container" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">Email / UPN</p>
-                  <p className="font-medium text-primary">a.sterling@enterprise-ict.com</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-primary">{user?.email || user?.upn || 'Not available'}</p>
+                    {(user?.email || user?.upn) && (
+                      <button
+                        type="button"
+                        onClick={() => void copyValue('email', user.email || user.upn || '')}
+                        className="h-10 w-10 rounded-xl bg-surface-container-highest hover:bg-surface-container-high transition-colors flex items-center justify-center text-on-surface-variant"
+                        aria-label="Copy email or UPN"
+                        title={copiedKey === 'email' ? 'Copied' : 'Copy'}
+                      >
+                        <Copy className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-4">
                 <div className="p-2.5 bg-secondary-container/50 rounded-xl">
                   <Phone className="w-5 h-5 text-on-secondary-container" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">Mobile</p>
-                  <p className="font-medium text-on-surface">Not available</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-on-surface">{user?.mobile || 'Not available'}</p>
+                    {user?.mobile && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={openWhatsapp}
+                          className="h-10 w-10 rounded-xl bg-surface-container-highest hover:bg-surface-container-high transition-colors flex items-center justify-center text-on-surface-variant"
+                          aria-label="Message on WhatsApp"
+                        >
+                          <MessageCircle className="w-5 h-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyValue('mobile', user.mobile)}
+                          className="h-10 w-10 rounded-xl bg-surface-container-highest hover:bg-surface-container-high transition-colors flex items-center justify-center text-on-surface-variant"
+                          aria-label="Copy phone number"
+                          title={copiedKey === 'mobile' ? 'Copied' : 'Copy'}
+                        >
+                          <Copy className="w-5 h-5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-4">
                 <div className="p-2.5 bg-secondary-container/50 rounded-xl">
                   <Network className="w-5 h-5 text-on-secondary-container" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">Department</p>
-                  <p className="font-medium text-on-surface">Infrastructure &amp; Cloud Engineering</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-on-surface">{user?.department || 'Not available'}</p>
+                    {user?.department && (
+                      <button
+                        type="button"
+                        onClick={() => void copyValue('department', user.department)}
+                        className="h-10 w-10 rounded-xl bg-surface-container-highest hover:bg-surface-container-high transition-colors flex items-center justify-center text-on-surface-variant"
+                        aria-label="Copy department"
+                        title={copiedKey === 'department' ? 'Copied' : 'Copy'}
+                      >
+                        <Copy className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -93,10 +254,21 @@ export default function UserProfileScreen({ onBack }: UserProfileScreenProps) {
               <div className="p-3 bg-primary-container/30 rounded-2xl">
                 <BadgeInfo className="w-6 h-6 text-primary" />
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">Employee ID</p>
-                <p className="font-headline font-extrabold text-xl text-on-surface tracking-tight">ICT-99283-X</p>
+                <p className="font-headline font-extrabold text-xl text-on-surface tracking-tight">{user?.employeeId || 'Not available'}</p>
               </div>
+              {user?.employeeId && (
+                <button
+                  type="button"
+                  onClick={() => void copyValue('employeeId', user.employeeId)}
+                  className="h-10 w-10 rounded-xl bg-surface-container-highest hover:bg-surface-container-high transition-colors flex items-center justify-center text-on-surface-variant"
+                  aria-label="Copy employee ID"
+                  title={copiedKey === 'employeeId' ? 'Copied' : 'Copy'}
+                >
+                  <Copy className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
 
@@ -111,7 +283,7 @@ export default function UserProfileScreen({ onBack }: UserProfileScreenProps) {
                 <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-2">Last Password Change</p>
                 <div className="flex items-center gap-3">
                   <History className="w-4 h-4 text-on-surface-variant" />
-                  <span className="font-medium text-on-surface">October 14, 2023 • 09:42 AM</span>
+                  <span className="font-medium text-on-surface">{formatDateTime(user?.lastPasswordChange ?? null)}</span>
                 </div>
               </div>
               <div className="p-4 rounded-xl bg-surface-container-low/50">
@@ -121,7 +293,7 @@ export default function UserProfileScreen({ onBack }: UserProfileScreenProps) {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-tertiary"></span>
                   </div>
-                  <span className="font-medium text-tertiary">Expires in 42 days (Dec 25)</span>
+                  <span className="font-medium text-tertiary">{formatExpiry(user?.passwordExpiry ?? null, user?.passwordExpiresInDays ?? null)}</span>
                 </div>
               </div>
             </div>

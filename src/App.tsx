@@ -26,6 +26,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [biometricUnlocked, setBiometricUnlocked] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
+  const [selectedUserSam, setSelectedUserSam] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -68,6 +69,7 @@ export default function App() {
       setBiometricUnlocked(true);
       setIsAuthenticated(false);
       setActiveTab('home');
+      setSelectedUserSam(null);
     })();
   };
 
@@ -135,8 +137,20 @@ export default function App() {
         {activeTab === 'monitoring' && <MonitoringScreen />}
         {activeTab === 'service' && <ServiceScreen />}
         {activeTab === 'profile' && <ProfileScreen onLogout={logout} />}
-        {activeTab === 'user-management' && <UserManagementScreen onNavigate={(tab) => setActiveTab(tab)} />}
-        {activeTab === 'user-profile' && <UserProfileScreen onBack={() => setActiveTab('user-management')} />}
+        {activeTab === 'user-management' && (
+          <UserManagementScreen
+            onOpenUser={(sam) => {
+              setSelectedUserSam(sam);
+              setActiveTab('user-profile');
+            }}
+          />
+        )}
+        {activeTab === 'user-profile' && selectedUserSam && (
+          <UserProfileScreen
+            samAccountName={selectedUserSam}
+            onBack={() => setActiveTab('user-management')}
+          />
+        )}
         {activeTab === 'prf-monitoring' && <PrfMonitoringScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'prf-details' && <PrfDetailsScreen onBack={() => setActiveTab('prf-monitoring')} />}
         {activeTab === 'wifi-network' && <WifiNetworkScreen onNavigate={(tab) => setActiveTab(tab)} />}

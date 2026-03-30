@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, MoreHorizontal, Search, SlidersHorizontal, Briefcase, CloudUpload, RefreshCw, FileText, Download, Eye, MessageSquare, Hourglass, CheckCircle, Settings, FileUp, User } from 'lucide-react';
-import { getSelectedPomonPrfId, pomonGetPrfWithItems, type PomonPrfWithItems } from '../lib/pomon-api';
+import { ChevronLeft, MoreHorizontal, Search, SlidersHorizontal, Briefcase, RefreshCw, FileText, Download, Eye, MessageSquare, Hourglass, CheckCircle, Settings, FileUp, User } from 'lucide-react';
+import { getAuthUserRaw } from '../auth/storage';
+import { getSelectedPomonPrfId, pomonDownloadPrfDocument, pomonGetPrfWithItems, pomonListPrfDocuments, pomonUpdatePrfItem, pomonViewPrfDocument, type PomonPrfDocument, type PomonPrfWithItems } from '../lib/pomon-api';
 
 interface PrfDetailsScreenProps {
   onBack: () => void;
@@ -11,11 +12,66 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const [prf, setPrf] = useState<PomonPrfWithItems | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [itemSearch, setItemSearch] = useState('');
+  const [documents, setDocuments] = useState<PomonPrfDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
+  const [itemActionId, setItemActionId] = useState<number | null>(null);
 
   const prfId = useMemo(() => getSelectedPomonPrfId(), []);
   const currency = useMemo(() => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
   }, []);
+
+  const currentUser = useMemo(() => {
+    try {
+      const raw = getAuthUserRaw();
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as any;
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const displayName =
+    typeof currentUser?.displayName === 'string'
+      ? currentUser.displayName
+      : typeof currentUser?.username === 'string'
+        ? currentUser.username
+        : typeof currentUser?.upn === 'string'
+          ? currentUser.upn
+          : null;
+
+  const refreshPrf = async () => {
+    if (!prfId) return;
+    const resp = await pomonGetPrfWithItems(prfId);
+    if (!resp?.success || !resp.data || typeof resp.data !== 'object') {
+      throw new Error('PRF_FETCH_FAILED');
+    }
+    setPrf(resp.data);
+  };
+
+  const refreshDocuments = async () => {
+    if (!prfId) return;
+    setDocsLoading(true);
+    setDocsError(null);
+    try {
+      const resp = await pomonListPrfDocuments(prfId);
+      if (!resp?.success || !Array.isArray(resp.data)) {
+        setDocsError('Unable to load documents.');
+        setDocuments([]);
+        return;
+      }
+      setDocuments(resp.data);
+    } catch {
+      setDocsError('Unable to load documents.');
+      setDocuments([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -51,6 +107,11 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
     };
   }, [prfId]);
 
+  useEffect(() => {
+    if (!prfId) return;
+    void refreshDocuments();
+  }, [prfId]);
+
   const prfNo = typeof prf?.PRFNo === 'string' ? prf?.PRFNo : null;
   const submitBy = typeof prf?.SubmitBy === 'string' ? prf?.SubmitBy : null;
   const submittedAtRaw = typeof prf?.DateSubmit === 'string' ? prf.DateSubmit : typeof prf?.RequestDate === 'string' ? prf.RequestDate : null;
@@ -65,6 +126,76 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const requiredFor = typeof prf?.RequiredFor === 'string' ? prf.RequiredFor : null;
   const summary = typeof prf?.SumDescriptionRequested === 'string' ? (prf as any).SumDescriptionRequested : typeof prf?.Description === 'string' ? prf.Description : null;
   const items = Array.isArray(prf?.Items) ? prf.Items : [];
+  const filteredItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return items;
+    return (items as any[]).filter((it) => {
+      const values = [
+        typeof it?.ItemName === 'string' ? it.ItemName : '',
+        typeof it?.Description === 'string' ? it.Description : '',
+        typeof it?.OriginalPONumber === 'string' ? it.OriginalPONumber : '',
+        typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : '',
+        typeof it?.Status === 'string' ? it.Status : '',
+      ]
+        .filter(Boolean)
+        .map((s) => String(s).toLowerCase());
+      return values.some((s) => s.includes(q));
+    });
+  }, [itemSearch, items]);
+
+  const activity = useMemo(() => {
+    const list: Array<{ t: number; title: string; subtitle?: string; kind: 'submitted' | 'document' | 'split' | 'picked' | 'status' }> = [];
+
+    if (submittedAt) {
+      list.push({
+        t: submittedAt.getTime(),
+        title: 'PRF Submitted',
+        subtitle: submitBy ? `Submitted by ${submitBy}` : undefined,
+        kind: 'submitted',
+      });
+    }
+
+    const prfUpdatedAtRaw = typeof (prf as any)?.UpdatedAt === 'string' ? (prf as any).UpdatedAt : null;
+    const prfUpdatedAt = prfUpdatedAtRaw ? new Date(prfUpdatedAtRaw) : null;
+    if (prfUpdatedAt && Number.isFinite(prfUpdatedAt.getTime())) {
+      list.push({
+        t: prfUpdatedAt.getTime(),
+        title: 'PRF Updated',
+        subtitle: statusLabel ? `Status: ${statusLabel}` : undefined,
+        kind: 'status',
+      });
+    }
+
+    for (const d of documents) {
+      const whenRaw = typeof d.UploadDate === 'string' ? d.UploadDate : null;
+      const when = whenRaw ? new Date(whenRaw) : null;
+      const t = when && Number.isFinite(when.getTime()) ? when.getTime() : 0;
+      const name = typeof d.OriginalFileName === 'string' ? d.OriginalFileName : 'Document';
+      list.push({ t, title: 'Document uploaded', subtitle: name, kind: 'document' });
+    }
+
+    for (const it of items as any[]) {
+      const splitPo = typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : null;
+      const updatedAtRaw = typeof it?.UpdatedAt === 'string' ? it.UpdatedAt : null;
+      const when = updatedAtRaw ? new Date(updatedAtRaw) : null;
+      const t = when && Number.isFinite(when.getTime()) ? when.getTime() : 0;
+      if (splitPo) {
+        list.push({ t, title: 'Split PO created', subtitle: splitPo, kind: 'split' });
+      }
+
+      const pickedUpAtRaw = typeof it?.PickedUpDate === 'string' ? it.PickedUpDate : null;
+      const pickedUpAt = pickedUpAtRaw ? new Date(pickedUpAtRaw) : null;
+      if (pickedUpAt && Number.isFinite(pickedUpAt.getTime())) {
+        const itemName = typeof it?.ItemName === 'string' ? it.ItemName : 'Item';
+        list.push({ t: pickedUpAt.getTime(), title: 'Item picked up', subtitle: itemName, kind: 'picked' });
+      }
+    }
+
+    return list
+      .filter((e) => Number.isFinite(e.t) && e.t > 0)
+      .sort((a, b) => b.t - a.t)
+      .slice(0, 30);
+  }, [documents, items, prf, statusLabel, submitBy, submittedAt]);
 
   return (
     <div className="bg-[#F8FAFC] font-body min-h-screen pb-20">
@@ -185,6 +316,8 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                   className="w-full bg-white border-none h-12 pl-12 pr-4 rounded-2xl focus:ring-2 focus:ring-[#3E26A8]/20 text-sm text-slate-700 placeholder:text-slate-400 shadow-[0_4px_20px_rgba(0,0,0,0.04)] outline-none" 
                   placeholder="Search items..." 
                   type="text"
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
                 />
               </div>
               <button className="w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] text-slate-600 hover:text-[#3E26A8] transition-colors">
@@ -194,26 +327,35 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
 
             {/* Items List */}
             <div className="space-y-4">
-              {!loading && !items.length && (
+              {!loading && !filteredItems.length && (
                 <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)] text-slate-500 text-sm">
                   No items found.
                 </div>
               )}
 
-              {items.map((it: any) => {
+              {filteredItems.map((it: any) => {
                 const itemId = typeof it?.PRFItemID === 'number' ? it.PRFItemID : undefined;
                 const name = typeof it?.ItemName === 'string' ? it.ItemName : '—';
                 const itemStatus = typeof it?.Status === 'string' ? it.Status : '—';
                 const qty = typeof it?.Quantity === 'number' ? it.Quantity : null;
                 const total = typeof it?.TotalPrice === 'number' ? it.TotalPrice : null;
+                const originalPo = typeof it?.OriginalPONumber === 'string' ? it.OriginalPONumber : null;
+                const splitPo = typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : null;
 
                 return (
                   <div key={itemId ?? name} className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="font-bold text-slate-800 text-lg flex-1 mr-4">{name}</h3>
-                      <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">
-                        {itemStatus}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {splitPo && (
+                          <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded uppercase tracking-wider border border-amber-100">
+                            Split PO
+                          </span>
+                        )}
+                        <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase tracking-wider">
+                          {itemStatus}
+                        </span>
+                      </div>
                     </div>
                     <div className="space-y-3 mb-6">
                       <div className="flex items-center justify-between text-sm">
@@ -224,10 +366,39 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                         <span className="text-slate-400">Total</span>
                         <span className="text-slate-800 font-bold">{total !== null ? currency.format(total) : '—'}</span>
                       </div>
+                      {(originalPo || splitPo) && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-400">PO Number</span>
+                          <span className="text-slate-800 font-bold font-mono text-right">
+                            {splitPo ? (originalPo ? `${originalPo} → ${splitPo}` : splitPo) : originalPo}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <button className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20">
+                    <button
+                      disabled={!itemId || itemActionId === itemId}
+                      onClick={() => {
+                        if (!itemId) return;
+                        setItemActionId(itemId);
+                        void (async () => {
+                          try {
+                            await pomonUpdatePrfItem(itemId, {
+                              status: 'Picked Up',
+                              pickedUpBy: displayName ?? undefined,
+                              pickedUpDate: new Date().toISOString(),
+                            });
+                            await refreshPrf();
+                          } catch {
+                            setError('Unable to update item.');
+                          } finally {
+                            setItemActionId(null);
+                          }
+                        })();
+                      }}
+                      className="w-full bg-[#3E26A8] py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3E26A8]/90 transition-all active:scale-[0.98] shadow-lg shadow-[#3E26A8]/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
                       <Briefcase className="w-5 h-5" />
-                      Check Goods
+                      {itemActionId === itemId ? 'Updating…' : 'Check Goods'}
                     </button>
                   </div>
                 );
@@ -238,93 +409,100 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
 
         {activeTab === 'documents' && (
           <div className="space-y-6">
-            {/* Upload Area */}
-            <div className="bg-white border-2 border-dashed border-slate-200 rounded-[32px] p-8 flex flex-col items-center justify-center text-center group hover:border-[#3E26A8] transition-colors cursor-pointer">
-              <div className="w-16 h-16 bg-[#3E26A8]/5 rounded-full flex items-center justify-center mb-4 group-hover:bg-[#3E26A8]/10 transition-colors">
-                <CloudUpload className="text-[#3E26A8] w-8 h-8" />
-              </div>
-              <h3 className="font-bold text-slate-800 text-lg mb-1">Upload new documents</h3>
-              <p className="text-slate-500 text-sm">Drag and drop files here or click to browse</p>
-            </div>
-
             {/* Documents List */}
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2 px-2">
-                <h3 className="font-bold text-slate-800">Attached Documents (3)</h3>
-                <button className="text-[#3E26A8] text-sm font-bold flex items-center gap-1">
+                <h3 className="font-bold text-slate-800">Attached Documents ({documents.length})</h3>
+                <button
+                  onClick={() => void refreshDocuments()}
+                  className="text-[#3E26A8] text-sm font-bold flex items-center gap-1"
+                >
                   <RefreshCw className="w-4 h-4" />
-                  Refresh
+                  {docsLoading ? 'Loading…' : 'Refresh'}
                 </button>
               </div>
 
-              {/* Document Card 1 */}
-              <div className="bg-white rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-5">
-                <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center shrink-0">
-                  <FileText className="text-red-500 w-8 h-8" />
+              {docsError && (
+                <div className="bg-red-50 text-red-700 px-4 py-3 rounded-2xl text-sm font-semibold">
+                  {docsError}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-slate-800 text-base truncate">Quotation_Vendor_A.pdf</h4>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-slate-400 text-xs font-medium">1.2 MB</span>
-                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                    <span className="text-slate-400 text-xs font-medium">Mar 27, 2026</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all">
-                    <Eye className="w-5 h-5" />
-                  </button>
-                  <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all">
-                    <Download className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+              )}
 
-              {/* Document Card 2 */}
-              <div className="bg-white rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-5">
-                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center shrink-0">
-                  <FileText className="text-blue-500 w-8 h-8" />
+              {!docsLoading && !documents.length && !docsError && (
+                <div className="bg-white rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] text-slate-500 text-sm">
+                  No documents found.
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-slate-800 text-base truncate">Technical_Specs.docx</h4>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-slate-400 text-xs font-medium">456 KB</span>
-                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                    <span className="text-slate-400 text-xs font-medium">Mar 27, 2026</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all">
-                    <Eye className="w-5 h-5" />
-                  </button>
-                  <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all">
-                    <Download className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+              )}
 
-              {/* Document Card 3 */}
-              <div className="bg-white rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-5">
-                <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center shrink-0">
-                  <FileText className="text-green-500 w-8 h-8" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-slate-800 text-base truncate">Budget_Approval.pdf</h4>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-slate-400 text-xs font-medium">890 KB</span>
-                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                    <span className="text-slate-400 text-xs font-medium">Mar 26, 2026</span>
+              {documents.map((d) => {
+                const fileId = typeof d.FileID === 'number' ? d.FileID : null;
+                const name = typeof d.OriginalFileName === 'string' ? d.OriginalFileName : 'Document';
+                const sizeRaw = typeof d.FileSize === 'string' ? Number(d.FileSize) : typeof d.FileSize === 'number' ? d.FileSize : null;
+                const sizeLabel = sizeRaw ? `${Math.max(1, Math.round(sizeRaw / 1024))} KB` : '';
+                const whenRaw = typeof d.UploadDate === 'string' ? d.UploadDate : null;
+                const when = whenRaw ? new Date(whenRaw) : null;
+                const whenLabel = when && Number.isFinite(when.getTime()) ? when.toLocaleDateString() : '';
+                const isOriginal = Boolean(d.IsOriginalDocument);
+
+                return (
+                  <div key={fileId ?? name} className="bg-white rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-5">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${isOriginal ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                      <FileText className={`w-8 h-8 ${isOriginal ? 'text-amber-600' : 'text-slate-500'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-slate-800 text-base truncate">{name}</h4>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        {sizeLabel && <span className="text-slate-400 text-xs font-medium">{sizeLabel}</span>}
+                        {sizeLabel && whenLabel && <span className="w-1 h-1 bg-slate-300 rounded-full" />}
+                        {whenLabel && <span className="text-slate-400 text-xs font-medium">{whenLabel}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={!fileId}
+                        onClick={() => {
+                          if (!fileId) return;
+                          void (async () => {
+                            try {
+                              const blob = await pomonViewPrfDocument(fileId);
+                              const url = URL.createObjectURL(blob);
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                            } catch {
+                              setDocsError('Unable to open document.');
+                            }
+                          })();
+                        }}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all disabled:opacity-50 disabled:hover:bg-slate-50 disabled:hover:text-slate-600"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                      <button
+                        disabled={!fileId}
+                        onClick={() => {
+                          if (!fileId) return;
+                          void (async () => {
+                            try {
+                              const blob = await pomonDownloadPrfDocument(fileId);
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = name;
+                              a.click();
+                              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                            } catch {
+                              setDocsError('Unable to download document.');
+                            }
+                          })();
+                        }}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all disabled:opacity-50 disabled:hover:bg-slate-50 disabled:hover:text-slate-600"
+                      >
+                        <Download className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all">
-                    <Eye className="w-5 h-5" />
-                  </button>
-                  <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-[#3E26A8] hover:text-white transition-all">
-                    <Download className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -332,80 +510,54 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
         {activeTab === 'activity' && (
           <div className="bg-white rounded-[32px] p-8 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
             <h3 className="text-xl font-bold text-slate-800 mb-8 font-headline">Recent Activity</h3>
+            {!activity.length && (
+              <div className="text-slate-500 text-sm">
+                No activity found.
+              </div>
+            )}
+
             <div className="space-y-0">
-              {/* Activity 4: Comment Added */}
-              <div className="relative flex gap-6 pb-10 before:absolute before:left-[23px] before:top-10 before:bottom-0 before:w-0.5 before:bg-slate-200 last:before:hidden last:pb-2">
-                <div className="relative z-10 flex-shrink-0 w-12 h-12 rounded-full bg-[#3E26A8]/10 flex items-center justify-center border-4 border-white">
-                  <MessageSquare className="text-[#3E26A8] w-5 h-5" />
-                </div>
-                <div className="flex-1 pt-1">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-2">
-                    <h4 className="font-bold text-slate-800">Comment added</h4>
-                    <span className="text-xs text-slate-400 font-medium">Mar 26, 2026 • 03:45 PM</span>
-                  </div>
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-6 h-6 rounded-full bg-slate-300 overflow-hidden">
-                        <div className="w-full h-full bg-[#3E26A8] flex items-center justify-center text-[10px] text-white font-bold">SV</div>
+              {activity.map((e, idx) => {
+                const date = new Date(e.t);
+                const timeLabel = Number.isFinite(date.getTime()) ? date.toLocaleString() : '';
+                const isLast = idx === activity.length - 1;
+
+                const icon = e.kind === 'submitted'
+                  ? <FileUp className="text-[#3E26A8] w-5 h-5" />
+                  : e.kind === 'document'
+                    ? <FileText className="text-indigo-600 w-5 h-5" />
+                    : e.kind === 'split'
+                      ? <MessageSquare className="text-amber-600 w-5 h-5" />
+                      : e.kind === 'picked'
+                        ? <CheckCircle className="text-green-600 w-5 h-5" />
+                        : <Hourglass className="text-slate-600 w-5 h-5" />;
+
+                const bubble =
+                  e.kind === 'submitted'
+                    ? 'bg-[#3E26A8]/10'
+                    : e.kind === 'document'
+                      ? 'bg-indigo-100'
+                      : e.kind === 'split'
+                        ? 'bg-amber-100'
+                        : e.kind === 'picked'
+                          ? 'bg-green-100'
+                          : 'bg-slate-100';
+
+                return (
+                  <div key={`${e.kind}-${e.t}-${idx}`} className={`relative flex gap-6 pb-10 ${!isLast ? "before:absolute before:left-[23px] before:top-10 before:bottom-0 before:w-0.5 before:bg-slate-200" : "pb-2"}`}>
+                    <div className={`relative z-10 flex-shrink-0 w-12 h-12 rounded-full ${bubble} flex items-center justify-center border-4 border-white`}>
+                      {icon}
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-1">
+                        <h4 className="font-bold text-slate-800">{e.title}</h4>
+                        <span className="text-xs text-slate-400 font-medium">{timeLabel}</span>
                       </div>
-                      <span className="text-sm font-semibold text-slate-700">Supervisor</span>
+                      {e.subtitle && <p className="text-sm text-slate-500">{e.subtitle}</p>}
                     </div>
-                    <p className="text-sm text-slate-600 italic">"Please verify the quantities for the cable conduit."</p>
                   </div>
-                </div>
-              </div>
-
-              {/* Activity 3: Status Update */}
-              <div className="relative flex gap-6 pb-10 before:absolute before:left-[23px] before:top-10 before:bottom-0 before:w-0.5 before:bg-slate-200 last:before:hidden last:pb-2">
-                <div className="relative z-10 flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center border-4 border-white">
-                  <Hourglass className="text-amber-600 w-5 h-5" />
-                </div>
-                <div className="flex-1 pt-1">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-1">
-                    <h4 className="font-bold text-slate-800">Status Update</h4>
-                    <span className="text-xs text-slate-400 font-medium">Mar 26, 2026 • 02:15 PM</span>
-                  </div>
-                  <p className="text-sm text-slate-500">PRF status changed to <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-700 border border-amber-100 uppercase ml-1">Awaiting Finance Approval</span></p>
-                </div>
-              </div>
-
-              {/* Activity 2: Technical Review */}
-              <div className="relative flex gap-6 pb-10 before:absolute before:left-[23px] before:top-10 before:bottom-0 before:w-0.5 before:bg-slate-200 last:before:hidden last:pb-2">
-                <div className="relative z-10 flex-shrink-0 w-12 h-12 rounded-full bg-green-100 flex items-center justify-center border-4 border-white">
-                  <CheckCircle className="text-green-600 w-5 h-5" />
-                </div>
-                <div className="flex-1 pt-1">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-1">
-                    <h4 className="font-bold text-slate-800">Technical Review Completed</h4>
-                    <span className="text-xs text-slate-400 font-medium">Mar 26, 2026 • 01:30 PM</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center">
-                      <Settings className="text-slate-500 w-3 h-3" />
-                    </div>
-                    <p className="text-sm text-slate-500">Processed by <span className="font-semibold text-slate-700">System</span></p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Activity 1: PRF Submitted */}
-              <div className="relative flex gap-6 pb-10 before:absolute before:left-[23px] before:top-10 before:bottom-0 before:w-0.5 before:bg-slate-200 last:before:hidden last:pb-2">
-                <div className="relative z-10 flex-shrink-0 w-12 h-12 rounded-full bg-[#3E26A8]/10 flex items-center justify-center border-4 border-white">
-                  <FileUp className="text-[#3E26A8] w-5 h-5" />
-                </div>
-                <div className="flex-1 pt-1">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-1">
-                    <h4 className="font-bold text-slate-800">PRF Submitted</h4>
-                    <span className="text-xs text-slate-400 font-medium">Mar 26, 2026 • 09:00 AM</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
-                      <User className="text-indigo-600 w-3 h-3" />
-                    </div>
-                    <p className="text-sm text-slate-500">Submitted by <span className="font-semibold text-slate-700">Adriana User</span></p>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
         )}

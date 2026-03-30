@@ -3,6 +3,7 @@ import { Shield, HelpCircle, Terminal, User, Lock, EyeOff, ArrowRight, Key, Fing
 import { Capacitor } from '@capacitor/core';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
 import { getApiBaseUrl } from '../lib/api';
+import { getCopyrightText } from '../lib/copyright';
 import {
   clearBiometricCredentials,
   getBiometricCredentials,
@@ -246,7 +247,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
                 </div>
                 <input 
                   type="text" 
-                  placeholder="nexus-ops-742" 
+                  placeholder="mti.user" 
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   autoComplete="username"
@@ -310,34 +311,28 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
               <span>{loading ? 'Signing in...' : 'Sign In'}</span>
               <ArrowRight className="w-5 h-5" />
             </button>
-
-            {Capacitor.isNativePlatform() && biometricLoginReady && (
-              <button
-                type="button"
-                onClick={handleBiometricLogin}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 bg-surface-container border border-outline-variant/15 py-3.5 rounded-xl hover:bg-surface-container-high transition-colors"
-              >
-                <Fingerprint className="w-5 h-5 text-slate-800" />
-                <span className="text-sm font-semibold text-slate-800">Sign in with biometrics</span>
-              </button>
-            )}
           </form>
 
           {/* Secondary Actions: Asymmetric Spacing */}
           <div className="mt-8 pt-8 flex flex-col gap-6 relative z-10">
-            <div className="flex items-center gap-4">
-              <div className="h-[1px] flex-grow bg-surface-variant"></div>
-              <span className="text-[10px] font-label font-bold text-on-surface-variant uppercase tracking-widest">Enterprise Auth</span>
-              <div className="h-[1px] flex-grow bg-surface-variant"></div>
-            </div>
-            <button 
-              type="button" 
-              className="w-full flex items-center justify-center gap-3 bg-surface-container border border-outline-variant/15 py-3.5 rounded-xl hover:bg-surface-container-high transition-colors"
-            >
-              <Key className="w-5 h-5 text-slate-800" />
-              <span className="text-sm font-semibold text-slate-800">Single Sign-On (SSO)</span>
-            </button>
+            {Capacitor.isNativePlatform() && (
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={handleBiometricLogin}
+                  disabled={loading || !biometricLoginReady}
+                  className="w-full flex items-center justify-center gap-3 bg-surface-container border border-outline-variant/15 py-3.5 rounded-xl hover:bg-surface-container-high transition-colors disabled:opacity-60 disabled:hover:bg-surface-container"
+                >
+                  <Fingerprint className="w-5 h-5 text-slate-800" />
+                  <span className="text-sm font-semibold text-slate-800">Sign in with biometrics</span>
+                </button>
+                {!biometricLoginReady && (
+                  <p className="text-xs text-on-surface-variant text-center">
+                    Enable biometric login and sign in once to set it up.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex justify-center">
               <a href="#" className="text-sm font-semibold text-primary hover:text-primary-dim transition-colors">Forgot Password?</a>
             </div>
@@ -379,7 +374,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
             </div>
           </div>
           <p className="font-label text-[11px] uppercase tracking-widest text-slate-400 text-center">
-            © 2024 Slate Nexus Enterprise. Precision ICT Operations.
+            {getCopyrightText()}
           </p>
         </div>
       </footer>

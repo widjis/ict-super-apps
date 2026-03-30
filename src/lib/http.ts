@@ -14,6 +14,34 @@ function buildUrl(path: string, query?: Record<string, unknown>) {
   return url.toString();
 }
 
+export async function authedFetch(path: string, init?: RequestInit & { query?: Record<string, unknown> }) {
+  const token = await getAuthToken();
+  const query = (init as any)?.query as Record<string, unknown> | undefined;
+  const headers: Record<string, string> = {};
+
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (init?.headers) {
+    const h = init.headers as any;
+    if (typeof h.forEach === 'function') {
+      h.forEach((v: string, k: string) => (headers[k] = v));
+    } else if (typeof h === 'object') {
+      for (const [k, v] of Object.entries(h)) {
+        if (typeof v === 'string') headers[k] = v;
+      }
+    }
+  }
+
+  const { query: _q, ...rest } = (init ?? {}) as any;
+  const resp = await fetch(buildUrl(path, query), { ...rest, headers });
+  if (!resp.ok) {
+    const err = new Error('HTTP_ERROR');
+    (err as any).status = resp.status;
+    (err as any).text = await resp.text().catch(() => null);
+    throw err;
+  }
+  return resp;
+}
+
 export async function authedGetJson(path: string, query?: Record<string, unknown>) {
   const token = await getAuthToken();
   const resp = await fetch(buildUrl(path, query), {
@@ -30,3 +58,7 @@ export async function authedGetJson(path: string, query?: Record<string, unknown
   return data;
 }
 
+export async function authedGetBlob(path: string, query?: Record<string, unknown>) {
+  const resp = await authedFetch(path, { method: 'GET', query });
+  return await resp.blob();
+}

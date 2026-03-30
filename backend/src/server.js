@@ -1,10 +1,11 @@
 import dotenv from 'dotenv';
 import express from 'express';
-import { authenticateWithActiveDirectory } from './ldap.js';
+import { Readable } from 'node:stream';
+import { authenticateWithActiveDirectory, getActiveDirectoryUserBySamAccountName, searchActiveDirectoryUsers, unlockActiveDirectoryUser } from './ldap.js';
 import { signAccessToken, verifyAccessToken } from './jwt.js';
 import { getPool } from './db.js';
 import { ensureUserDefaults, getUserBundleByIdOrDn, insertLoginEvent, replaceUserGroups, upsertUserFromAd } from './user-repo.js';
-import { createPomonClient } from './pomon.js';
+import { createPomonClient, getPomonConfig } from './pomon.js';
 
 dotenv.config();
 
@@ -47,6 +48,38 @@ function sendPomonError(res, err) {
   return res.status(status).json({ ok: false, error: code });
 }
 
+async function forwardPomonStream(req, res, { method, path }) {
+  try {
+    const { baseUrl, apiKey } = getPomonConfig();
+    const url = new URL(path, baseUrl);
+
+    const headers = {};
+    const contentType = typeof req.headers['content-type'] === 'string' ? req.headers['content-type'] : null;
+    const contentLength = typeof req.headers['content-length'] === 'string' ? req.headers['content-length'] : null;
+    if (contentType) headers['content-type'] = contentType;
+    if (contentLength) headers['content-length'] = contentLength;
+    if (apiKey) headers['x-api-key'] = apiKey;
+
+    const upstream = await fetch(url, {
+      method,
+      headers,
+      body: method === 'GET' || method === 'HEAD' ? undefined : req,
+      duplex: method === 'GET' || method === 'HEAD' ? undefined : 'half',
+    });
+
+    res.status(upstream.status);
+    const ct = upstream.headers.get('content-type');
+    const cd = upstream.headers.get('content-disposition');
+    if (ct) res.setHeader('content-type', ct);
+    if (cd) res.setHeader('content-disposition', cd);
+
+    if (!upstream.body) return res.end();
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    return sendPomonError(res, err);
+  }
+}
+
 app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
@@ -67,6 +100,15 @@ app.get('/api/pomon/health', requireAccessToken, async (req, res) => {
 app.get('/api/pomon/prfs', requireAccessToken, async (req, res) => {
   try {
     const result = await pomon.requestJson('/api/prfs', { query: req.query });
+    return sendPomonResult(res, result);
+  } catch (err) {
+    return sendPomonError(res, err);
+  }
+});
+
+app.get('/api/pomon/prfs/with-items', requireAccessToken, async (req, res) => {
+  try {
+    const result = await pomon.requestJson('/api/prfs/with-items', { query: req.query });
     return sendPomonResult(res, result);
   } catch (err) {
     return sendPomonError(res, err);
@@ -112,6 +154,107 @@ app.get('/api/pomon/prfs/:id/with-items', requireAccessToken, async (req, res) =
     return sendPomonResult(res, result);
   } catch (err) {
     return sendPomonError(res, err);
+  }
+});
+
+app.put('/api/pomon/prfs/items/:itemId', requireAccessToken, async (req, res) => {
+  const itemId = Number(req.params.itemId);
+  if (!Number.isFinite(itemId) || itemId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const result = await pomon.requestJson(`/api/prfs/items/${itemId}`, { method: 'PUT', body: req.body });
+    return sendPomonResult(res, result);
+  } catch (err) {
+    return sendPomonError(res, err);
+  }
+});
+
+app.get('/api/pomon/prf-files/:prfId', requireAccessToken, async (req, res) => {
+  const prfId = Number(req.params.prfId);
+  if (!Number.isFinite(prfId) || prfId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const result = await pomon.requestJson(`/api/prf-files/${prfId}`);
+    return sendPomonResult(res, result);
+  } catch (err) {
+    return sendPomonError(res, err);
+  }
+});
+
+app.post('/api/pomon/prf-files/:prfId/upload', requireAccessToken, async (req, res) => {
+  const prfId = Number(req.params.prfId);
+  if (!Number.isFinite(prfId) || prfId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+  return await forwardPomonStream(req, res, { method: 'POST', path: `/api/prf-files/${prfId}/upload` });
+});
+
+app.get('/api/pomon/prf-documents/documents/:prfId', requireAccessToken, async (req, res) => {
+  const prfId = Number(req.params.prfId);
+  if (!Number.isFinite(prfId) || prfId <= 0) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const result = await pomon.requestJson(`/api/prf-documents/documents/${prfId}`);
+    return sendPomonResult(res, result);
+  } catch (err) {
+    return sendPomonError(res, err);
+  }
+});
+
+app.get('/api/pomon/prf-documents/view/:fileId', requireAccessToken, async (req, res) => {
+  const fileId = String(req.params.fileId);
+  if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+  return await forwardPomonStream(req, res, { method: 'GET', path: `/api/prf-documents/view/${encodeURIComponent(fileId)}` });
+});
+
+app.get('/api/pomon/prf-documents/download/:fileId', requireAccessToken, async (req, res) => {
+  const fileId = String(req.params.fileId);
+  if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+  return await forwardPomonStream(req, res, { method: 'GET', path: `/api/prf-documents/download/${encodeURIComponent(fileId)}` });
+});
+
+app.get('/api/ad/users', requireAccessToken, async (req, res) => {
+  const query = typeof req.query.q === 'string' ? req.query.q : typeof req.query.query === 'string' ? req.query.query : '';
+  const activeOnly = req.query.activeOnly === 'true' || req.query.activeOnly === '1';
+  const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
+
+  try {
+    const result = await searchActiveDirectoryUsers({ query, activeOnly, limit });
+    return res.json({ ok: true, users: result.users });
+  } catch (err) {
+    const code = typeof err?.code === 'string' ? err.code : 'AD_SEARCH_FAILED';
+    const status = code === 'LDAP_CONFIG_MISSING' ? 500 : code.startsWith('LDAP_') ? 502 : 500;
+    return res.status(status).json({ ok: false, error: code });
+  }
+});
+
+app.get('/api/ad/users/:samAccountName', requireAccessToken, async (req, res) => {
+  const samAccountName = req.params.samAccountName;
+  try {
+    const result = await getActiveDirectoryUserBySamAccountName({ samAccountName });
+    if (!result.ok) {
+      if (result.reason === 'INVALID_ID') return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+      return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    }
+    return res.json({ ok: true, user: result.user });
+  } catch (err) {
+    const code = typeof err?.code === 'string' ? err.code : 'AD_LOOKUP_FAILED';
+    const status = code === 'LDAP_CONFIG_MISSING' ? 500 : code.startsWith('LDAP_') ? 502 : 500;
+    return res.status(status).json({ ok: false, error: code });
+  }
+});
+
+app.post('/api/ad/users/:samAccountName/unlock', requireAccessToken, async (req, res) => {
+  const samAccountName = req.params.samAccountName;
+  try {
+    const result = await unlockActiveDirectoryUser({ samAccountName });
+    if (!result.ok) {
+      if (result.reason === 'INVALID_ID') return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+      return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    const code = typeof err?.code === 'string' ? err.code : 'AD_UNLOCK_FAILED';
+    const status = code === 'LDAP_CONFIG_MISSING' ? 500 : code.startsWith('LDAP_') ? 502 : 500;
+    return res.status(status).json({ ok: false, error: code });
   }
 });
 
