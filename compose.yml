@@ -13,3 +13,15 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
+
+  backend_prod:
+    build:
+      context: ./backend
+      target: prod
+    env_file:
+      - ./backend/.env
+    ports:
+      - "5058:8080"
+    environment:
+      PORT: "8080"
+      CORS_ORIGIN: "*"
