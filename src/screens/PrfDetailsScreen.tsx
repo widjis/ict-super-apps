@@ -4,7 +4,7 @@ import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 import { getAuthUserRaw } from '../auth/storage';
 import { listCheckGoodsForPrf, upsertCheckGoodsForItem, type CheckGoodsRecord } from '../lib/check-goods-api';
-import { getSelectedPomonPrfId, pomonGetPrfDocumentDownloadLink, pomonGetPrfDocumentViewLink, pomonGetPrfWithItems, pomonListPrfDocuments, type PomonPrfDocument, type PomonPrfWithItems } from '../lib/pomon-api';
+import { getSelectedPomonPrfId, pomonGetPrfDocumentDownloadLink, pomonGetPrfDocumentViewLink, pomonGetPrfWithItems, pomonListPrfDocuments, pomonUpdatePrfItem, type PomonPrfDocument, type PomonPrfWithItems } from '../lib/pomon-api';
 
 interface PrfDetailsScreenProps {
   onBack: () => void;
@@ -22,6 +22,8 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const [checkItem, setCheckItem] = useState<any | null>(null);
   const [checkStatus, setCheckStatus] = useState<string>('Pending');
   const [checkNotes, setCheckNotes] = useState<string>('');
+  const [pickupName, setPickupName] = useState<string>('');
+  const [pickupDate, setPickupDate] = useState<string>('');
   const [checkSaving, setCheckSaving] = useState(false);
   const [checkMap, setCheckMap] = useState<Record<number, CheckGoodsRecord>>({});
 
@@ -178,6 +180,31 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
     setCheckStatus(curStatus);
     const curNotes = existing?.notes ?? '';
     setCheckNotes(curNotes);
+
+    const pickedBy =
+      typeof it?.PickedUpBy === 'string'
+        ? it.PickedUpBy
+        : typeof it?.pickedUpBy === 'string'
+          ? it.pickedUpBy
+          : '';
+    setPickupName(pickedBy);
+
+    const pickedAtRaw =
+      typeof it?.PickedUpDate === 'string'
+        ? it.PickedUpDate
+        : typeof it?.pickedUpDate === 'string'
+          ? it.pickedUpDate
+          : '';
+    if (pickedAtRaw) {
+      const d = new Date(pickedAtRaw);
+      if (Number.isFinite(d.getTime())) {
+        setPickupDate(d.toISOString().slice(0, 10));
+      } else {
+        setPickupDate('');
+      }
+    } else {
+      setPickupDate('');
+    }
   };
 
   const closeCheckGoods = () => {
@@ -251,10 +278,10 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   return (
     <div className="bg-[#F8FAFC] font-body min-h-screen pb-20">
       {/* Header Section with Gradient */}
-      <header className="bg-gradient-to-br from-[#4426A8] to-[#2A1A78] pt-8 pb-10 px-6 text-white rounded-b-[40px] relative overflow-hidden">
+      <header className="bg-gradient-to-br from-[#4426A8] to-[#2A1A78] pt-safe-6 pb-6 px-6 text-white rounded-b-[40px] relative overflow-hidden">
         <div className="max-w-4xl mx-auto">
           {/* Top Controls */}
-          <div className="flex justify-between items-center mb-10">
+          <div className="flex justify-between items-center mb-6">
             <button 
               onClick={onBack}
               className="p-2 -ml-2 hover:bg-white/10 rounded-full transition-colors"
@@ -270,24 +297,35 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
           {/* PRF Info Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="flex-1">
-              <h1 className="text-3xl font-extrabold font-headline mb-2">{prfNo ? `PRF #${prfNo}` : 'PRF Details'}</h1>
-              <p className="text-white/70 text-sm leading-relaxed max-w-lg">
-                {submittedAt ? `Submitted ${submittedAt.toISOString()}${submitBy ? ` by ${submitBy}` : ''}` : loading ? 'Loading…' : ''}
+              <div className="flex items-start justify-between gap-3 mb-1">
+                <h1 className="text-3xl font-extrabold font-headline min-w-0 truncate">
+                  {prfNo ? `PRF #${prfNo}` : 'PRF Details'}
+                </h1>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  {statusLabel && (
+                    <span className="px-2.5 py-1 rounded-full bg-white/15 border border-white/20 text-[10px] font-extrabold uppercase tracking-wider text-white/95">
+                      {statusLabel}
+                    </span>
+                  )}
+                  {priorityLabel && (
+                    <span className="px-2.5 py-1 rounded-full bg-amber-400/95 text-[10px] font-extrabold uppercase tracking-wider text-[#2A1A78]">
+                      {priorityLabel}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="text-white/70 text-xs leading-relaxed max-w-lg">
+                {submittedAt
+                  ? `Submitted ${submittedAt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}${submitBy ? ` by ${submitBy}` : ''}`
+                  : loading
+                    ? 'Loading…'
+                    : ''}
               </p>
-            </div>
-            <div className="flex flex-col gap-2 shrink-0">
-              <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-lg border border-white/20 text-center">
-                <span className="text-[10px] font-bold block leading-tight uppercase">{statusLabel ? statusLabel : '—'}</span>
-              </div>
-              <div className="bg-[#F59E0B] px-4 py-2 rounded-lg text-center shadow-lg">
-                <span className="text-[10px] font-black block leading-tight text-white">PRIORITY:</span>
-                <span className="text-[10px] font-black block leading-tight text-white uppercase">{priorityLabel ? priorityLabel : '—'}</span>
-              </div>
             </div>
           </div>
 
           {/* Tab Navigation */}
-          <div className="mt-12 bg-white/10 backdrop-blur-md p-1.5 rounded-2xl flex items-center gap-1">
+          <div className="mt-6 bg-white/10 backdrop-blur-md p-1.5 rounded-2xl flex items-center gap-1">
             <button 
               onClick={() => setActiveTab('items')}
               className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all ${activeTab === 'items' ? 'bg-white text-[#3E26A8]' : 'text-white/70 hover:bg-white/5'}`}
@@ -318,37 +356,34 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
         )}
 
         {/* Main Info Card */}
-        <section className="bg-white rounded-[32px] p-8 shadow-[0_4px_20px_rgba(0,0,0,0.04)] mb-8 relative z-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
-            <div>
+        <section className="bg-white rounded-[28px] p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)] mb-6 relative z-10">
+          <div className="grid grid-cols-2 gap-y-6 gap-x-6">
+            <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Department</span>
-              <p className="text-slate-800 font-bold text-base">{dept ?? '—'}</p>
+              <p className="text-slate-800 font-bold text-base truncate">{dept ?? '—'}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Submit By</span>
-              <p className="text-slate-800 font-bold text-base">{submitBy ?? '—'}</p>
+              <p className="text-slate-800 font-bold text-base truncate">{submitBy ?? '—'}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Cost Code</span>
-              <p className="text-slate-800 font-bold text-base font-mono">{costCode ?? '—'}</p>
+              <p className="text-slate-800 font-bold text-base font-mono truncate">{costCode ?? '—'}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Budget Year</span>
-              <p className="text-slate-800 font-bold text-base">{budgetYear ?? '—'}</p>
+              <p className="text-slate-800 font-bold text-base truncate">{budgetYear ?? '—'}</p>
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1 text-[#3E26A8]">Requested Amount</span>
-              <p className="text-[#3E26A8] font-extrabold text-xl">{requestedAmount !== null ? currency.format(requestedAmount) : '—'}</p>
+              <p className="text-[#3E26A8] font-extrabold text-xl truncate">{requestedAmount !== null ? currency.format(requestedAmount) : '—'}</p>
             </div>
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Approved Amount</span>
-              <p className="text-slate-800 font-bold text-xl">{approvedAmount !== null ? currency.format(approvedAmount) : currency.format(0)}</p>
-            </div>
-            <div className="md:col-span-2">
+            <div className="min-w-0" />
+            <div className="col-span-2 min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Required For</span>
               <p className="text-slate-800 font-bold text-base">{requiredFor ?? '—'}</p>
             </div>
-            <div className="md:col-span-2">
+            <div className="col-span-2 min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Summary</span>
               <p className="text-slate-500 text-sm leading-relaxed">
                 {summary ?? '—'}
@@ -392,6 +427,19 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                 const total = typeof it?.TotalPrice === 'number' ? it.TotalPrice : null;
                 const originalPo = typeof it?.OriginalPONumber === 'string' ? it.OriginalPONumber : null;
                 const splitPo = typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : null;
+                const pickedBy =
+                  typeof it?.PickedUpBy === 'string'
+                    ? it.PickedUpBy
+                    : typeof it?.pickedUpBy === 'string'
+                      ? it.pickedUpBy
+                      : null;
+                const pickedAtRaw =
+                  typeof it?.PickedUpDate === 'string'
+                    ? it.PickedUpDate
+                    : typeof it?.pickedUpDate === 'string'
+                      ? it.pickedUpDate
+                      : null;
+                const pickedAt = pickedAtRaw ? new Date(pickedAtRaw) : null;
                 const check = itemId ? checkMap[itemId] : undefined;
                 const checkLabel = typeof check?.check_status === 'string' ? check.check_status : null;
                 const checkedAtRaw = typeof check?.checked_at === 'string' ? check.checked_at : null;
@@ -431,6 +479,15 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                           <span className="text-slate-400">PO Number</span>
                           <span className="text-slate-800 font-bold font-mono text-right">
                             {splitPo ? (originalPo ? `${originalPo} → ${splitPo}` : splitPo) : originalPo}
+                          </span>
+                        </div>
+                      )}
+                      {(pickedBy || (pickedAt && Number.isFinite(pickedAt.getTime()))) && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-400">Pickup</span>
+                          <span className="text-slate-800 font-bold text-right">
+                            {pickedBy ? pickedBy : '—'}
+                            {pickedAt && Number.isFinite(pickedAt.getTime()) ? ` • ${pickedAt.toLocaleDateString('id-ID')}` : ''}
                           </span>
                         </div>
                       )}
@@ -620,7 +677,7 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
             className="absolute inset-0 bg-black/50"
             aria-label="Close"
           />
-          <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-[28px] p-6 shadow-2xl">
+          <div className="absolute left-0 right-0 bottom-0 bg-white rounded-t-[28px] p-6 pb-safe-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4 mb-5">
               <div className="min-w-0">
                 <h3 className="text-lg font-extrabold text-slate-900 truncate">Check Goods</h3>
@@ -670,6 +727,33 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <label className="block text-[11px] uppercase tracking-widest font-bold text-slate-400 mb-2">
+                    Pickup PIC
+                  </label>
+                  <input
+                    value={pickupName}
+                    onChange={(e) => setPickupName(e.target.value)}
+                    disabled={checkSaving}
+                    placeholder="Nama pengambil…"
+                    className="w-full h-12 px-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-800 outline-none focus:ring-2 focus:ring-[#3E26A8]/20"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label className="block text-[11px] uppercase tracking-widest font-bold text-slate-400 mb-2">
+                    Pickup Date
+                  </label>
+                  <input
+                    type="date"
+                    value={pickupDate}
+                    onChange={(e) => setPickupDate(e.target.value)}
+                    disabled={checkSaving}
+                    className="w-full h-12 px-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-800 outline-none focus:ring-2 focus:ring-[#3E26A8]/20"
+                  />
+                </div>
+              </div>
+
               <button
                 disabled={checkSaving || typeof checkItem?.PRFItemID !== 'number'}
                 onClick={() => {
@@ -690,6 +774,19 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                       if (resp?.ok && resp.data) {
                         setCheckMap((m) => ({ ...m, [itemId]: resp.data as CheckGoodsRecord }));
                       }
+
+                      const pickedUpBy = pickupName.trim();
+                      const pickedUpDate = pickupDate ? new Date(`${pickupDate}T00:00:00Z`).toISOString() : '';
+                      if (pickedUpBy || pickedUpDate) {
+                        const currentStatus = typeof checkItem?.Status === 'string' ? checkItem.Status : undefined;
+                        await pomonUpdatePrfItem(itemId, {
+                          status: currentStatus,
+                          pickedUpBy: pickedUpBy ? pickedUpBy : undefined,
+                          pickedUpDate: pickedUpDate ? pickedUpDate : undefined,
+                        });
+                        await refreshPrf();
+                      }
+
                       setCheckItem(null);
                     } catch {
                       setError('Unable to update item.');

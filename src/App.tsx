@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import TopBar from './components/TopBar';
 import BottomNav from './components/BottomNav';
 import HomeScreen from './screens/HomeScreen';
@@ -18,7 +19,7 @@ import WifiNetworkScreen from './screens/WifiNetworkScreen';
 import RegisterDeviceScreen from './screens/RegisterDeviceScreen';
 import CheckDeviceStatusScreen from './screens/CheckDeviceStatusScreen';
 import LeaseExpirationReportScreen from './screens/LeaseExpirationReportScreen';
-import { clearSavedSession, getAuthToken, getBiometricEnabled, setAuthToken } from './auth/storage';
+import { clearSavedSession, getAuthToken, getAuthUserRaw, getBiometricEnabled, setAuthToken } from './auth/storage';
 import { getApiBaseUrl } from './lib/api';
 
 export default function App() {
@@ -27,6 +28,36 @@ export default function App() {
   const [biometricUnlocked, setBiometricUnlocked] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [selectedUserSam, setSelectedUserSam] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const subPromise = CapacitorApp.addListener('backButton', () => {
+      setActiveTab((current) => {
+        if (current === 'prf-details') return 'prf-monitoring';
+        if (current === 'user-profile') {
+          setSelectedUserSam(null);
+          return 'user-management';
+        }
+        if (current === 'register-device' || current === 'check-device-status' || current === 'lease-expiration') return 'wifi-network';
+        if (current === 'wifi-network' || current === 'user-management' || current === 'prf-monitoring') return 'hub';
+        if (current === 'profile' || current === 'hub' || current === 'monitoring' || current === 'service') return 'home';
+
+        CapacitorApp.exitApp();
+        return current;
+      });
+    });
+
+    return () => {
+      void subPromise.then((sub) => sub.remove());
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -100,12 +131,49 @@ export default function App() {
     );
   }
 
+  const getFirstName = () => {
+    const raw = getAuthUserRaw();
+    if (!raw) return null;
+
+    try {
+      const user = JSON.parse(raw) as any;
+      const displayName = typeof user?.displayName === 'string' ? user.displayName : null;
+      const email = typeof user?.email === 'string' ? user.email : null;
+      const username = typeof user?.username === 'string' ? user.username : null;
+
+      const fromDisplayName = displayName?.trim().split(/\s+/)[0] ?? null;
+      if (fromDisplayName) return fromDisplayName;
+
+      const base = (email ? email.split('@')[0] : username) ?? null;
+      const fromUsername = base?.trim().split(/[._-]+/)[0] ?? null;
+      if (fromUsername) return fromUsername;
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getTimeGreeting = () => {
+    const h = now.getHours();
+    if (h >= 5 && h < 12) return 'Good morning';
+    if (h >= 12 && h < 17) return 'Good afternoon';
+    if (h >= 17 && h < 21) return 'Good evening';
+    return 'Good night';
+  };
+
+  const getGreetingTitle = () => {
+    const firstName = getFirstName();
+    const greeting = getTimeGreeting();
+    return firstName ? `${greeting}, ${firstName}` : greeting;
+  };
+
   const getTopBarTitle = () => {
     switch (activeTab) {
-      case 'home': return 'Good morning, Operator';
+      case 'home': return getGreetingTitle();
       case 'hub': return 'Feature Hub';
-      case 'monitoring': return 'Good morning, Operator';
-      case 'service': return 'Good morning, Operator';
+      case 'monitoring': return getGreetingTitle();
+      case 'service': return getGreetingTitle();
       case 'profile': return 'Profile';
       case 'user-management': return 'User Management';
       case 'prf-monitoring': return 'PRF Monitoring';
@@ -114,7 +182,7 @@ export default function App() {
       case 'register-device': return 'Register Device';
       case 'check-device-status': return 'Check Device Status';
       case 'lease-expiration': return 'Lease Expiration Report';
-      default: return 'Good morning, Operator';
+      default: return getGreetingTitle();
     }
   };
 
@@ -128,6 +196,16 @@ export default function App() {
             if (activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'wifi-network') setActiveTab('hub');
             else setActiveTab('home');
           }}
+          menuItems={
+            activeTab === 'prf-monitoring'
+              ? [
+                  { label: 'Hub', onClick: () => setActiveTab('hub') },
+                  { label: 'Logout', onClick: logout },
+                ]
+              : activeTab === 'user-management' || activeTab === 'wifi-network'
+                ? [{ label: 'Logout', onClick: logout }]
+                : []
+          }
         />
       )}
       
@@ -156,7 +234,7 @@ export default function App() {
         {activeTab === 'wifi-network' && <WifiNetworkScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'register-device' && (
           <>
-            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
+            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-safe-16">
               <div className="flex items-center gap-4">
                 <button onClick={() => setActiveTab('wifi-network')} className="text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
                   <ArrowLeft className="w-6 h-6" />
@@ -164,14 +242,14 @@ export default function App() {
                 <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
               </div>
             </header>
-            <div className="pt-16">
+            <div className="pt-safe-16">
               <RegisterDeviceScreen onBack={() => setActiveTab('wifi-network')} />
             </div>
           </>
         )}
         {activeTab === 'check-device-status' && (
           <>
-            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
+            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-safe-16">
               <div className="flex items-center gap-4">
                 <button onClick={() => setActiveTab('wifi-network')} className="text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
                   <ArrowLeft className="w-6 h-6" />
@@ -179,14 +257,14 @@ export default function App() {
                 <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
               </div>
             </header>
-            <div className="pt-16">
+            <div className="pt-safe-16">
               <CheckDeviceStatusScreen onBack={() => setActiveTab('wifi-network')} />
             </div>
           </>
         )}
         {activeTab === 'lease-expiration' && (
           <>
-            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16">
+            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-safe-16">
               <div className="flex items-center gap-4">
                 <button onClick={() => setActiveTab('wifi-network')} className="text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
                   <ArrowLeft className="w-6 h-6" />
@@ -194,7 +272,7 @@ export default function App() {
                 <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
               </div>
             </header>
-            <div className="pt-16">
+            <div className="pt-safe-16">
               <LeaseExpirationReportScreen onBack={() => setActiveTab('wifi-network')} />
             </div>
           </>

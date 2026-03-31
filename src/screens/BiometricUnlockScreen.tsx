@@ -54,7 +54,7 @@ export default function BiometricUnlockScreen({ onUnlocked, onLogout }: Biometri
   return (
     <div className="bg-surface font-body text-on-surface min-h-screen flex flex-col items-center justify-between">
       <header className="fixed top-0 left-0 w-full z-50 bg-slate-50/80 backdrop-blur-md">
-        <div className="flex items-center justify-between px-6 h-16 w-full max-w-7xl mx-auto">
+        <div className="flex items-center justify-between px-6 h-safe-16 w-full max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
             <Fingerprint className="text-primary w-6 h-6" />
             <h1 className="text-xl font-black tracking-tighter text-blue-700 font-headline">Slate Nexus</h1>
@@ -69,7 +69,7 @@ export default function BiometricUnlockScreen({ onUnlocked, onLogout }: Biometri
         </div>
       </header>
 
-      <main className="flex-grow w-full max-w-md px-6 pt-32 pb-12 flex flex-col justify-center mx-auto">
+      <main className="flex-grow w-full max-w-md px-6 pt-safe-32 pb-12 flex flex-col justify-center mx-auto">
         <section className="bg-surface-container-lowest rounded-2xl p-8 shadow-[0_8px_24px_rgba(42,52,57,0.06)] relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -mr-8 -mt-8"></div>
 

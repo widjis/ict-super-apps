@@ -205,7 +205,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
     <div className="bg-surface font-body text-on-surface h-[100svh] flex flex-col items-center">
       {/* Top Navigation Anchor */}
       <header className="fixed top-0 left-0 w-full z-50 bg-slate-50/80 backdrop-blur-md">
-        <div className="flex items-center justify-between px-6 h-16 w-full max-w-7xl mx-auto">
+        <div className="flex items-center justify-between px-6 h-safe-16 w-full max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
             <Shield className="text-primary w-6 h-6" />
             <h1 className="text-xl font-black tracking-tighter text-blue-700 font-headline">Slate Nexus</h1>
@@ -219,7 +219,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
       </header>
 
       {/* Main Content Canvas */}
-      <main className="flex-1 min-h-0 w-full max-w-md px-6 pt-24 pb-6 flex flex-col justify-center mx-auto">
+      <main className="flex-1 min-h-0 w-full max-w-md px-6 pt-safe-24 pb-6 flex flex-col justify-center mx-auto">
         {/* Login Card Architecture */}
         <section className="bg-surface-container-lowest rounded-2xl p-6 sm:p-8 shadow-[0_8px_24px_rgba(42,52,57,0.06)] relative overflow-hidden">
           {/* Tonal Accent Background Decoration */}
