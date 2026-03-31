@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { SignJWT } from 'jose';
 import { authenticateWithActiveDirectory, getActiveDirectoryUserBySamAccountName, searchActiveDirectoryUsers, unlockActiveDirectoryUser } from './ldap.js';
 import { signAccessToken, verifyAccessToken } from './jwt.js';
 import { getPool } from './db.js';
@@ -82,6 +83,64 @@ async function forwardPomonStream(req, res, { method, path }) {
     Readable.fromWeb(upstream.body).pipe(res);
   } catch (err) {
     return sendPomonError(res, err);
+  }
+}
+
+function getRequestOrigin(req) {
+  const proto = typeof req.headers['x-forwarded-proto'] === 'string' ? req.headers['x-forwarded-proto'].split(',')[0].trim() : req.protocol;
+  const host = typeof req.headers['x-forwarded-host'] === 'string' ? req.headers['x-forwarded-host'].split(',')[0].trim() : req.get('host');
+  return `${proto}://${host}`;
+}
+
+async function signDocToken({ fileId, action }) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    const err = new Error('Missing JWT_SECRET');
+    err.code = 'JWT_SECRET_MISSING';
+    throw err;
+  }
+
+  const token = await new SignJWT({ doc: true, fileId: String(fileId), action })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .sign(new TextEncoder().encode(secret));
+  return token;
+}
+
+async function requireAccessTokenOrDocToken(req, res, next) {
+  const raw = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+  const bearer = raw.startsWith('Bearer ') ? raw.slice('Bearer '.length) : null;
+
+  if (bearer) {
+    try {
+      const payload = await verifyAccessToken(bearer);
+      req.auth = payload;
+      return next();
+    } catch {
+      return res.status(401).json({ ok: false, error: 'INVALID_TOKEN' });
+    }
+  }
+
+  const docToken = typeof req.query?.docToken === 'string' ? req.query.docToken : null;
+  if (!docToken) return res.status(401).json({ ok: false, error: 'MISSING_TOKEN' });
+
+  try {
+    const payload = await verifyAccessToken(docToken);
+    const fileId = String(req.params.fileId ?? '');
+    const expectedAction = typeof req.query?.action === 'string' ? req.query.action : null;
+
+    const ok =
+      payload &&
+      typeof payload === 'object' &&
+      payload.doc === true &&
+      String(payload.fileId ?? '') === fileId &&
+      (expectedAction ? String(payload.action ?? '') === expectedAction : true);
+
+    if (!ok) return res.status(401).json({ ok: false, error: 'INVALID_TOKEN' });
+    return next();
+  } catch {
+    return res.status(401).json({ ok: false, error: 'INVALID_TOKEN' });
   }
 }
 
@@ -293,13 +352,47 @@ app.get('/api/pomon/prf-documents/documents/:prfId', requireAccessToken, async (
   }
 });
 
-app.get('/api/pomon/prf-documents/view/:fileId', requireAccessToken, async (req, res) => {
+app.get('/api/pomon/prf-documents/view-link/:fileId', requireAccessToken, async (req, res) => {
+  const fileId = String(req.params.fileId);
+  if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const token = await signDocToken({ fileId, action: 'view' });
+    const origin = getRequestOrigin(req);
+    return res.json({
+      ok: true,
+      url: `${origin}/api/pomon/prf-documents/view/${encodeURIComponent(fileId)}?docToken=${encodeURIComponent(token)}&action=view`,
+    });
+  } catch (err) {
+    const code = typeof err?.code === 'string' ? err.code : 'DOC_TOKEN_FAILED';
+    return res.status(code === 'JWT_SECRET_MISSING' ? 500 : 500).json({ ok: false, error: code });
+  }
+});
+
+app.get('/api/pomon/prf-documents/download-link/:fileId', requireAccessToken, async (req, res) => {
+  const fileId = String(req.params.fileId);
+  if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const token = await signDocToken({ fileId, action: 'download' });
+    const origin = getRequestOrigin(req);
+    return res.json({
+      ok: true,
+      url: `${origin}/api/pomon/prf-documents/download/${encodeURIComponent(fileId)}?docToken=${encodeURIComponent(token)}&action=download`,
+    });
+  } catch (err) {
+    const code = typeof err?.code === 'string' ? err.code : 'DOC_TOKEN_FAILED';
+    return res.status(code === 'JWT_SECRET_MISSING' ? 500 : 500).json({ ok: false, error: code });
+  }
+});
+
+app.get('/api/pomon/prf-documents/view/:fileId', requireAccessTokenOrDocToken, async (req, res) => {
   const fileId = String(req.params.fileId);
   if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
   return await forwardPomonStream(req, res, { method: 'GET', path: `/api/prf-documents/view/${encodeURIComponent(fileId)}` });
 });
 
-app.get('/api/pomon/prf-documents/download/:fileId', requireAccessToken, async (req, res) => {
+app.get('/api/pomon/prf-documents/download/:fileId', requireAccessTokenOrDocToken, async (req, res) => {
   const fileId = String(req.params.fileId);
   if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
   return await forwardPomonStream(req, res, { method: 'GET', path: `/api/prf-documents/download/${encodeURIComponent(fileId)}` });

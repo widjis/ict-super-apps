@@ -93,6 +93,14 @@ export async function pomonListPrfDocuments(prfId: number) {
   return (await authedGetJson(`/api/pomon/prf-documents/documents/${prfId}`)) as PomonApiResponse<PomonPrfDocument[]>;
 }
 
+export async function pomonGetPrfDocumentViewLink(fileId: number | string) {
+  return (await authedGetJson(`/api/pomon/prf-documents/view-link/${fileId}`)) as { ok: boolean; url?: string };
+}
+
+export async function pomonGetPrfDocumentDownloadLink(fileId: number | string) {
+  return (await authedGetJson(`/api/pomon/prf-documents/download-link/${fileId}`)) as { ok: boolean; url?: string };
+}
+
 export async function pomonViewPrfDocument(fileId: number | string) {
   return await authedGetBlob(`/api/pomon/prf-documents/view/${fileId}`);
 }

@@ -202,7 +202,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
   };
 
   return (
-    <div className="bg-surface font-body text-on-surface min-h-screen flex flex-col items-center justify-between">
+    <div className="bg-surface font-body text-on-surface h-[100svh] flex flex-col items-center">
       {/* Top Navigation Anchor */}
       <header className="fixed top-0 left-0 w-full z-50 bg-slate-50/80 backdrop-blur-md">
         <div className="flex items-center justify-between px-6 h-16 w-full max-w-7xl mx-auto">
@@ -219,14 +219,14 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
       </header>
 
       {/* Main Content Canvas */}
-      <main className="flex-grow w-full max-w-md px-6 pt-32 pb-12 flex flex-col justify-center mx-auto">
+      <main className="flex-1 min-h-0 w-full max-w-md px-6 pt-24 pb-6 flex flex-col justify-center mx-auto">
         {/* Login Card Architecture */}
-        <section className="bg-surface-container-lowest rounded-2xl p-8 shadow-[0_8px_24px_rgba(42,52,57,0.06)] relative overflow-hidden">
+        <section className="bg-surface-container-lowest rounded-2xl p-6 sm:p-8 shadow-[0_8px_24px_rgba(42,52,57,0.06)] relative overflow-hidden">
           {/* Tonal Accent Background Decoration */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -mr-8 -mt-8"></div>
           
           {/* Branding/Identity */}
-          <div className="mb-10 text-center relative z-10">
+          <div className="mb-6 sm:mb-10 text-center relative z-10">
             <div className="inline-flex items-center justify-center w-14 h-14 bg-surface-container-high rounded-xl mb-4">
               <Terminal className="text-primary w-8 h-8" />
             </div>
@@ -314,7 +314,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
           </form>
 
           {/* Secondary Actions: Asymmetric Spacing */}
-          <div className="mt-8 pt-8 flex flex-col gap-6 relative z-10">
+          <div className="mt-6 pt-6 sm:mt-8 sm:pt-8 flex flex-col gap-4 sm:gap-6 relative z-10">
             {Capacitor.isNativePlatform() && (
               <div className="flex flex-col gap-3">
                 <button
@@ -351,7 +351,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
         </section>
 
         {/* Security Identity */}
-        <div className="mt-10 flex flex-col items-center gap-3">
+        <div className="hidden sm:flex mt-10 flex-col items-center gap-3">
           <div className="flex items-center gap-2 bg-tertiary-container/30 px-4 py-2 rounded-full">
             <div className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div>
             <span className="text-[11px] font-bold text-on-tertiary-container uppercase tracking-wide">Secure Enterprise Connection</span>
@@ -363,7 +363,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
       </main>
 
       {/* Predictable Footer Anchor */}
-      <footer className="w-full py-12 bg-slate-50 mt-auto">
+      <footer className="hidden sm:block w-full py-12 bg-slate-50 mt-auto">
         <div className="flex flex-col items-center gap-4 w-full px-8">
           <div className="flex items-center gap-6 mb-2">
             <a href="#" className="font-label text-[11px] uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors">Privacy Policy</a>

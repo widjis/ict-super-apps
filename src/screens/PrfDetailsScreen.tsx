@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, MoreHorizontal, Search, SlidersHorizontal, Briefcase, RefreshCw, FileText, Download, Eye, MessageSquare, Hourglass, CheckCircle, Settings, FileUp, User } from 'lucide-react';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { getAuthUserRaw } from '../auth/storage';
 import { listCheckGoodsForPrf, upsertCheckGoodsForItem, type CheckGoodsRecord } from '../lib/check-goods-api';
-import { getSelectedPomonPrfId, pomonDownloadPrfDocument, pomonGetPrfWithItems, pomonListPrfDocuments, pomonViewPrfDocument, type PomonPrfDocument, type PomonPrfWithItems } from '../lib/pomon-api';
+import { getSelectedPomonPrfId, pomonGetPrfDocumentDownloadLink, pomonGetPrfDocumentViewLink, pomonGetPrfWithItems, pomonListPrfDocuments, type PomonPrfDocument, type PomonPrfWithItems } from '../lib/pomon-api';
 
 interface PrfDetailsScreenProps {
   onBack: () => void;
@@ -236,6 +238,15 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
       .sort((a, b) => b.t - a.t)
       .slice(0, 30);
   }, [documents, items, prf, statusLabel, submitBy, submittedAt]);
+
+  const openExternal = async (url: string) => {
+    if (!url) return;
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url });
+      return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   return (
     <div className="bg-[#F8FAFC] font-body min-h-screen pb-20">
@@ -502,10 +513,12 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                           if (!fileId) return;
                           void (async () => {
                             try {
-                              const blob = await pomonViewPrfDocument(fileId);
-                              const url = URL.createObjectURL(blob);
-                              window.open(url, '_blank', 'noopener,noreferrer');
-                              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                              const resp = await pomonGetPrfDocumentViewLink(fileId);
+                              if (!resp?.ok || typeof resp.url !== 'string') {
+                                setDocsError('Unable to open document.');
+                                return;
+                              }
+                              await openExternal(resp.url);
                             } catch {
                               setDocsError('Unable to open document.');
                             }
@@ -521,13 +534,12 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                           if (!fileId) return;
                           void (async () => {
                             try {
-                              const blob = await pomonDownloadPrfDocument(fileId);
-                              const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = name;
-                              a.click();
-                              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                              const resp = await pomonGetPrfDocumentDownloadLink(fileId);
+                              if (!resp?.ok || typeof resp.url !== 'string') {
+                                setDocsError('Unable to download document.');
+                                return;
+                              }
+                              await openExternal(resp.url);
                             } catch {
                               setDocsError('Unable to download document.');
                             }
