@@ -20,8 +20,7 @@ services:
       target: prod
     env_file:
       - ./backend/.env
-    ports:
-      - "5058:8080"
+    network_mode: host
     environment:
-      PORT: "8080"
+      PORT: "5058"
       CORS_ORIGIN: "*"
