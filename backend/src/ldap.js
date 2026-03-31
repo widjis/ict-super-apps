@@ -264,6 +264,7 @@ function mapAdEntryToDirectoryUser(entry) {
   const department = entry.department ?? null;
   const upn = entry.userPrincipalName ?? null;
   const email = entry.mail ?? null;
+  const employeeId = entry.employeeID ?? null;
   const locked = isLockedFromLockoutTime(entry.lockoutTime);
   const disabled = isDisabledFromUac(entry.userAccountControl);
 
@@ -279,6 +280,7 @@ function mapAdEntryToDirectoryUser(entry) {
     department,
     upn,
     email,
+    employeeId,
     status
   };
 }
@@ -313,12 +315,67 @@ export async function searchActiveDirectoryUsers({ query, activeOnly, limit }) {
       scope: 'sub',
       filter,
       sizeLimit,
-      attributes: ['dn', 'cn', 'displayName', 'title', 'department', 'mail', 'userPrincipalName', 'sAMAccountName', 'userAccountControl', 'lockoutTime']
+      attributes: [
+        'dn',
+        'cn',
+        'displayName',
+        'title',
+        'department',
+        'mail',
+        'userPrincipalName',
+        'sAMAccountName',
+        'employeeID',
+        'userAccountControl',
+        'lockoutTime'
+      ]
     });
 
     const users = searchEntries
       .map(mapAdEntryToDirectoryUser)
       .filter((u) => u.id);
+
+    return { ok: true, users };
+  } catch (err) {
+    throw toLdapStageError('SEARCH', err);
+  } finally {
+    await client.unbind().catch(() => undefined);
+  }
+}
+
+export async function listActiveDirectoryUsersPaginated({ activeOnly, pageSize, limit } = {}) {
+  const { client, baseDN } = await getServiceClient();
+  try {
+    const filter = buildUserSearchFilter('', Boolean(activeOnly));
+    const resolvedPageSize = typeof pageSize === 'number' && pageSize > 0 ? Math.min(pageSize, 2000) : 1000;
+    const resolvedLimit = typeof limit === 'number' && limit > 0 ? limit : null;
+    const users = [];
+
+    for await (const page of client.searchPaginated(baseDN, {
+      scope: 'sub',
+      filter,
+      sizeLimit: 0,
+      paged: { pageSize: resolvedPageSize },
+      attributes: [
+        'dn',
+        'cn',
+        'displayName',
+        'title',
+        'department',
+        'mail',
+        'userPrincipalName',
+        'sAMAccountName',
+        'employeeID',
+        'userAccountControl',
+        'lockoutTime'
+      ]
+    })) {
+      for (const entry of page.searchEntries) {
+        const u = mapAdEntryToUserDetails(entry);
+        if (!u.id) continue;
+        users.push(u);
+        if (resolvedLimit && users.length >= resolvedLimit) return { ok: true, users };
+      }
+    }
 
     return { ok: true, users };
   } catch (err) {

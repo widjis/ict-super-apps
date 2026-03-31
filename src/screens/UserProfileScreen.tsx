@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BadgeInfo, Contact, Copy, History, Mail, MessageCircle, MoreVertical, Network, Phone, ShieldAlert, Verified } from 'lucide-react';
 import { authedGetJson } from '../lib/http';
+import EmployeePhoto from '../components/EmployeePhoto';
 
 interface UserProfileScreenProps {
   onBack: () => void;
@@ -145,11 +146,13 @@ export default function UserProfileScreen({ onBack, samAccountName }: UserProfil
         {/* Hero Profile Section */}
         <section className="flex flex-col items-center text-center space-y-4">
           <div className="relative group">
-            <div className="w-32 h-32 rounded-2xl overflow-hidden shadow-lg border-4 border-surface-container-lowest">
-              <div className="w-full h-full bg-primary-container/30 flex items-center justify-center">
-                <span className="text-primary font-extrabold text-4xl">{initials || 'AD'}</span>
-              </div>
-            </div>
+            <EmployeePhoto
+              employeeId={user?.employeeId ?? null}
+              fallbackText={initials || 'AD'}
+              alt={user?.displayName || samAccountName}
+              className="w-32 h-32 rounded-2xl overflow-hidden shadow-lg border-4 border-surface-container-lowest bg-primary-container/30 flex items-center justify-center"
+              fallbackClassName="text-primary font-extrabold text-4xl"
+            />
             <div className="absolute -bottom-2 -right-2 bg-tertiary text-on-tertiary p-1.5 rounded-lg shadow-md border-2 border-surface-container-lowest">
               <Verified className="w-5 h-5" />
             </div>

@@ -1,9 +1,13 @@
 import dotenv from 'dotenv';
 import express from 'express';
+import crypto from 'node:crypto';
 import { Readable } from 'node:stream';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { authenticateWithActiveDirectory, getActiveDirectoryUserBySamAccountName, searchActiveDirectoryUsers, unlockActiveDirectoryUser } from './ldap.js';
 import { signAccessToken, verifyAccessToken } from './jwt.js';
 import { getPool } from './db.js';
+import { getStoredEmployeePhoto, syncEmployeePhotoFromCardDb } from './carddb-photo-sync.js';
 import { ensureUserDefaults, getUserBundleByIdOrDn, insertLoginEvent, replaceUserGroups, upsertUserFromAd } from './user-repo.js';
 import { createPomonClient, getPomonConfig } from './pomon.js';
 
@@ -87,6 +91,95 @@ app.get('/health', (req, res) => {
 
 app.get('/api/time', (req, res) => {
   res.json({ now: new Date().toISOString() });
+});
+
+function sendBinaryWithEtag(req, res, { contentType, body }) {
+  const ct = typeof contentType === 'string' && contentType ? contentType : 'application/octet-stream';
+  const etag = `"${crypto.createHash('sha256').update(body).digest('hex')}"`;
+  if (req.headers['if-none-match'] === etag) return res.status(304).end();
+
+  res.setHeader('cache-control', 'private, max-age=3600');
+  res.setHeader('etag', etag);
+  res.setHeader('content-type', ct);
+  return res.status(200).send(body);
+}
+
+app.get('/api/carddb/photos/:employeeId', requireAccessToken, async (req, res) => {
+  const employeeId = String(req.params.employeeId ?? '').trim();
+  if (!employeeId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
+
+  try {
+    const row = await getStoredEmployeePhoto(employeeId);
+    if (!row) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    return sendBinaryWithEtag(req, res, { contentType: row.contentType, body: row.photo });
+  } catch {
+    return res.status(500).json({ ok: false, error: 'DB_ERROR' });
+  }
+});
+
+async function resolveEmployeeIdForRequest(req) {
+  const username = typeof req.auth?.username === 'string' ? req.auth.username.trim() : '';
+  if (!username) {
+    const err = new Error('Missing username in token');
+    err.code = 'MISSING_USERNAME';
+    throw err;
+  }
+
+  const result = await getActiveDirectoryUserBySamAccountName({ samAccountName: username });
+  if (!result.ok) {
+    const err = new Error('User not found in AD');
+    err.code = result.reason === 'INVALID_ID' ? 'INVALID_ID' : 'NOT_FOUND';
+    throw err;
+  }
+
+  const employeeId = typeof result.user?.employeeId === 'string' ? result.user.employeeId.trim() : null;
+  if (!employeeId) {
+    const err = new Error('Missing employeeId in AD');
+    err.code = 'EMPLOYEE_ID_MISSING';
+    throw err;
+  }
+
+  return { employeeId, adUser: result.user };
+}
+
+app.post('/api/me/photo/sync', requireAccessToken, async (req, res) => {
+  try {
+    const { employeeId } = await resolveEmployeeIdForRequest(req);
+    const result = await syncEmployeePhotoFromCardDb(employeeId);
+    if (!result.ok) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    return res.json({ ok: true, employeeId: result.employeeId, staffNo: result.staffNo, contentType: result.contentType });
+  } catch (err) {
+    const code = typeof err?.code === 'string' ? err.code : 'SYNC_FAILED';
+    const status =
+      code === 'LDAP_CONFIG_MISSING' || code === 'EMPLOYEE_ID_MISSING' || code === 'MISSING_USERNAME'
+        ? 500
+        : code.startsWith('LDAP_')
+          ? 502
+          : code === 'INVALID_ID'
+            ? 400
+            : 500;
+    return res.status(status).json({ ok: false, error: code });
+  }
+});
+
+app.get('/api/me/photo', requireAccessToken, async (req, res) => {
+  try {
+    const { employeeId } = await resolveEmployeeIdForRequest(req);
+    const row = await getStoredEmployeePhoto(employeeId);
+    if (!row) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    return sendBinaryWithEtag(req, res, { contentType: row.contentType, body: row.photo });
+  } catch (err) {
+    const code = typeof err?.code === 'string' ? err.code : 'PHOTO_FAILED';
+    const status =
+      code === 'LDAP_CONFIG_MISSING' || code === 'EMPLOYEE_ID_MISSING' || code === 'MISSING_USERNAME'
+        ? 500
+        : code.startsWith('LDAP_')
+          ? 502
+          : code === 'INVALID_ID'
+            ? 400
+            : 500;
+    return res.status(status).json({ ok: false, error: code });
+  }
 });
 
 app.get('/api/pomon/health', requireAccessToken, async (req, res) => {
@@ -452,6 +545,8 @@ export function startServer() {
   });
 }
 
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
-  startServer();
+const entryArgv = process.argv[1];
+if (entryArgv) {
+  const entryPath = path.isAbsolute(entryArgv) ? entryArgv : path.resolve(process.cwd(), entryArgv);
+  if (import.meta.url === pathToFileURL(entryPath).href) startServer();
 }

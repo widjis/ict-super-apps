@@ -10,6 +10,8 @@
     "backend:install": "npm --prefix backend install",
     "backend:dev": "npm --prefix backend run dev",
     "backend:start": "npm --prefix backend start",
+    "sync:photo": "npm --prefix backend run sync:photo --",
+    "carddb:sync-photos": "npm --prefix backend run carddb:sync-photos",
     "db:migrate": "npm --prefix backend run db:migrate",
     "preview": "vite preview",
     "clean": "rm -rf dist",

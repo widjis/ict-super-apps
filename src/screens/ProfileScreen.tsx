@@ -1,22 +1,48 @@
+import { useMemo } from 'react';
 import { Edit2, ShieldCheck, BellRing, Moon, Shield, Info, LogOut, ChevronRight } from 'lucide-react';
+import { getAuthUserRaw } from '../auth/storage';
+import MePhoto from '../components/MePhoto';
 
 interface ProfileScreenProps {
   onLogout?: () => void;
 }
 
 export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
+  const me = useMemo(() => {
+    try {
+      const raw = getAuthUserRaw();
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as any;
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const displayName = typeof me?.displayName === 'string' ? me.displayName : null;
+  const username = typeof me?.username === 'string' ? me.username : null;
+  const title = typeof me?.title === 'string' ? me.title : null;
+  const department = typeof me?.department === 'string' ? me.department : null;
+  const subtitle = title || department || (typeof me?.upn === 'string' ? me.upn : null) || (typeof me?.email === 'string' ? me.email : null) || null;
+  const label = (displayName || username || 'User').trim();
+  const initials = label
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join('') || 'U';
+
   return (
     <div className="max-w-3xl mx-auto px-6 py-8 pb-32">
       {/* User Profile Hero Section */}
       <section className="mb-10 flex flex-col md:flex-row gap-8 items-start">
         <div className="relative group">
-          <div className="w-32 h-32 md:w-40 md:h-40 rounded-3xl overflow-hidden shadow-xl ring-4 ring-surface-container-lowest">
-            <img 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2V_5UTUZ4Ppr8Zc8dr0hk2CkWe8vGaTf5mTTWUTYAnA1a5yekWR45kEvmYGF0YT9ibJ-w-BeV20jClaWiibq2NB6CmCW_Fan2X4AlT0ozZ8zX7APqirOb_-SbIWe057f7fm9XinJ7DxMjCzzsijn7bv5EN2ikdVrpeVTUVhO4vELp_yIWZWLdK2WA7iihe5x1tDlJmVP11qhbXQrYd_krQNjSUl7-sxGj6Ewj0YY_bc1vF32CoRWWIKE4aLFz19fRq3DPg0WRll4" 
-              alt="Profile" 
-              className="w-full h-full object-cover"
-            />
-          </div>
+          <MePhoto
+            fallbackText={initials}
+            alt={label}
+            className="w-32 h-32 md:w-40 md:h-40 rounded-3xl overflow-hidden shadow-xl ring-4 ring-surface-container-lowest bg-primary-container/30 flex items-center justify-center"
+            fallbackClassName="text-primary font-extrabold text-3xl md:text-4xl"
+          />
           <button className="absolute -bottom-2 -right-2 bg-primary text-white p-2.5 rounded-xl shadow-lg border-2 border-surface hover:bg-primary-dim transition-colors">
             <Edit2 className="w-4 h-4" />
           </button>
@@ -25,8 +51,8 @@ export default function ProfileScreen({ onLogout }: ProfileScreenProps) {
         <div className="flex-1 space-y-4">
           <div className="space-y-1">
             <p className="font-label text-xs uppercase tracking-[0.2em] text-on-surface-variant font-semibold">Administrator Account</p>
-            <h2 className="font-headline text-4xl font-extrabold text-on-surface tracking-tight">Alex Operator</h2>
-            <p className="text-secondary font-medium text-lg">Lead System Admin</p>
+            <h2 className="font-headline text-4xl font-extrabold text-on-surface tracking-tight">{label}</h2>
+            <p className="text-secondary font-medium text-lg">{subtitle || ' '}</p>
           </div>
           
           {/* Access Level Badge */}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Info, Search, Unlock, UserPlus } from 'lucide-react';
 import { authedGetJson, authedPostJson } from '../lib/http';
+import EmployeePhoto from '../components/EmployeePhoto';
 
 interface UserManagementScreenProps {
   onOpenUser?: (samAccountName: string) => void;
@@ -13,6 +14,7 @@ type DirectoryUser = {
   department: string | null;
   email: string | null;
   upn: string | null;
+  employeeId?: string | null;
   status: 'ACTIVE' | 'LOCKED' | 'DISABLED';
 };
 
@@ -160,9 +162,13 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-xl bg-primary-container/30 flex items-center justify-center">
-                      <span className="text-primary font-bold text-lg">{initials || 'AD'}</span>
-                    </div>
+                    <EmployeePhoto
+                      employeeId={u.employeeId ?? null}
+                      fallbackText={initials || 'AD'}
+                      alt={u.displayName || u.id}
+                      className="w-12 h-12 rounded-xl bg-primary-container/30 flex items-center justify-center overflow-hidden"
+                      fallbackClassName="text-primary font-bold text-lg"
+                    />
                     <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ${dotClasses} border-2 border-white ${!isLocked && !isDisabled ? 'shadow-[0_0_0_2px_rgba(16,185,129,0.2)] animate-pulse' : ''}`}></div>
                   </div>
                   <div>

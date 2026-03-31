@@ -54,12 +54,12 @@ if (!process.env.NODE_TLS_REJECT_UNAUTHORIZED && process.env.POSTGRES_SSL_REJECT
   }
 }
 
-const bin = path.resolve('node_modules', '.bin', 'node-pg-migrate');
+const bin = path.resolve('node_modules', '.bin', process.platform === 'win32' ? 'node-pg-migrate.cmd' : 'node-pg-migrate');
 
 const child = spawn(
   bin,
   ['up', '-m', 'migrations', '--check-order=false'],
-  { stdio: 'inherit', env: process.env }
+  { stdio: 'inherit', env: process.env, shell: process.platform === 'win32' }
 );
 
 child.on('exit', (code) => process.exit(code ?? 1));

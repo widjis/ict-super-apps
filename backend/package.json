@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "sync:photo": "node src/carddb-sync-photos.js",
+    "carddb:sync-photos": "node src/carddb-sync-photos.js",
     "db:migrate": "node src/db-migrate.js"
   },
   "dependencies": {
@@ -13,8 +15,10 @@
     "express": "^4.21.2",
     "jose": "^6.1.0",
     "ldapts": "^8.0.10",
+    "mssql": "^11.0.1",
     "node-pg-migrate": "^8.0.0",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "react-example": "file:.."
   },
   "engines": {
     "node": ">=20"
