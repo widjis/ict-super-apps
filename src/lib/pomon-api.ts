@@ -19,6 +19,22 @@ export type PomonApiResponse<T> = {
   message?: string;
 };
 
+function normalizePomonApiResponse<T>(raw: unknown) {
+  if (raw === null || raw === undefined) return { success: false, data: raw as T, message: 'INVALID_RESPONSE' } satisfies PomonApiResponse<T>;
+  if (typeof raw === 'object') {
+    const o = raw as any;
+    if (typeof o?.success === 'boolean') return o as PomonApiResponse<T>;
+    if (typeof o?.ok === 'boolean') {
+      return {
+        success: Boolean(o.ok),
+        data: o.data as T,
+        message: typeof o.error === 'string' ? o.error : undefined,
+      } satisfies PomonApiResponse<T>;
+    }
+  }
+  return { success: true, data: raw as T } satisfies PomonApiResponse<T>;
+}
+
 export type PomonPrfSummary = Record<string, unknown> & {
   PRFID?: number;
   PRFNo?: string;
@@ -58,23 +74,23 @@ export type PomonPrfWithItems = Record<string, unknown> & {
 };
 
 export async function pomonListPrfs(params: PomonListPrfsParams) {
-  return (await authedGetJson('/api/pomon/prfs', params)) as PomonApiResponse<PomonPrfSummary[]>;
+  return normalizePomonApiResponse<PomonPrfSummary[]>(await authedGetJson('/api/pomon/prfs', params));
 }
 
 export async function pomonListPrfsWithItems(params: { page?: number; limit?: number }) {
-  return (await authedGetJson('/api/pomon/prfs/with-items', params)) as PomonApiResponse<Array<PomonPrfWithItems>>;
+  return normalizePomonApiResponse<Array<PomonPrfWithItems>>(await authedGetJson('/api/pomon/prfs/with-items', params));
 }
 
 export async function pomonGetStatusFilters() {
-  return (await authedGetJson('/api/pomon/prfs/filters/status')) as PomonApiResponse<string[]>;
+  return normalizePomonApiResponse<string[]>(await authedGetJson('/api/pomon/prfs/filters/status'));
 }
 
 export async function pomonSearchPrfs(params: { q: string; limit?: number }) {
-  return (await authedGetJson('/api/pomon/prfs/search', params)) as PomonApiResponse<PomonPrfSummary[]>;
+  return normalizePomonApiResponse<PomonPrfSummary[]>(await authedGetJson('/api/pomon/prfs/search', params));
 }
 
 export async function pomonGetPrfWithItems(id: number) {
-  return (await authedGetJson(`/api/pomon/prfs/${id}/with-items`)) as PomonApiResponse<PomonPrfWithItems>;
+  return normalizePomonApiResponse<PomonPrfWithItems>(await authedGetJson(`/api/pomon/prfs/${id}/with-items`));
 }
 
 export type PomonPrfDocument = Record<string, unknown> & {

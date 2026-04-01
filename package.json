@@ -7,7 +7,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "build:mobile": "npm run build && npx cap sync android",
-    "build:apkdebug": "npm run build:mobile && (cd android && ./gradlew assembleDebug)",
+    "build:apkdebug": "npm run build:mobile && node scripts/run-gradle.mjs assembleDebug",
     "backend:install": "npm --prefix backend install",
     "backend:dev": "npm --prefix backend run dev",
     "backend:start": "npm --prefix backend start",

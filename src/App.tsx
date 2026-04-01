@@ -22,13 +22,57 @@ import LeaseExpirationReportScreen from './screens/LeaseExpirationReportScreen';
 import { clearSavedSession, getAuthToken, getAuthUserRaw, getBiometricEnabled, setAuthToken } from './auth/storage';
 import { getApiBaseUrl } from './lib/api';
 
+const VALID_TABS = new Set([
+  'home',
+  'hub',
+  'monitoring',
+  'service',
+  'profile',
+  'user-management',
+  'user-profile',
+  'prf-monitoring',
+  'prf-details',
+  'wifi-network',
+  'register-device',
+  'check-device-status',
+  'lease-expiration',
+]);
+
+function getTabFromLocation() {
+  const fromHash = window.location.hash.replace(/^#/, '').trim();
+  if (VALID_TABS.has(fromHash)) return fromHash;
+  const fromPath = window.location.pathname.replace(/^\/+/, '').replace(/\/+$/, '').trim();
+  if (VALID_TABS.has(fromPath)) return fromPath;
+  return null;
+}
+
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [biometricUnlocked, setBiometricUnlocked] = useState(true);
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => getTabFromLocation() ?? 'home');
   const [selectedUserSam, setSelectedUserSam] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const apply = () => {
+      const tab = getTabFromLocation();
+      if (tab) setActiveTab(tab);
+    };
+    window.addEventListener('hashchange', apply);
+    window.addEventListener('popstate', apply);
+    return () => {
+      window.removeEventListener('hashchange', apply);
+      window.removeEventListener('popstate', apply);
+    };
+  }, []);
+
+  useEffect(() => {
+    const desired = `#${activeTab}`;
+    if (window.location.hash !== desired) {
+      window.history.replaceState(null, '', desired);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;

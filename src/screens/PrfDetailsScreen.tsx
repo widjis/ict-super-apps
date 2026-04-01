@@ -142,6 +142,14 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
 
   const prfNo = typeof prf?.PRFNo === 'string' ? prf?.PRFNo : null;
   const submitBy = typeof prf?.SubmitBy === 'string' ? prf?.SubmitBy : null;
+  const approvedBy =
+    typeof (prf as any)?.ApprovedByName === 'string'
+      ? (prf as any).ApprovedByName
+      : typeof (prf as any)?.ApprovedBy === 'string'
+        ? (prf as any).ApprovedBy
+        : typeof (prf as any)?.ApproverName === 'string'
+          ? (prf as any).ApproverName
+          : null;
   const submittedAtRaw = typeof prf?.DateSubmit === 'string' ? prf.DateSubmit : typeof prf?.RequestDate === 'string' ? prf.RequestDate : null;
   const submittedAt = submittedAtRaw ? new Date(submittedAtRaw) : null;
   const statusLabel = typeof prf?.Status === 'string' ? prf.Status : null;
@@ -365,6 +373,10 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Submit By</span>
               <p className="text-slate-800 font-bold text-base truncate">{submitBy ?? '—'}</p>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Approved By</span>
+              <p className="text-slate-800 font-bold text-base truncate">{approvedBy ?? '—'}</p>
             </div>
             <div className="min-w-0">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Cost Code</span>

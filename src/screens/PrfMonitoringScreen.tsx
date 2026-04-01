@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, ChevronDown, Building2, User, Cpu, Palette } from 'lucide-react';
+import { Search, ChevronDown, Building2, User, Cpu, Palette, CheckCircle } from 'lucide-react';
 import { pomonGetStatusFilters, pomonListPrfs, pomonListPrfsWithItems, setSelectedPomonPrfId, type PomonPrfSummary } from '../lib/pomon-api';
 
 interface PrfMonitoringScreenProps {
@@ -288,6 +288,14 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
           const title = typeof prf.Title === 'string' ? prf.Title : '';
           const dept = typeof prf.Department === 'string' ? prf.Department : '';
           const requestor = typeof prf.RequestorName === 'string' ? prf.RequestorName : '';
+          const approvedBy =
+            typeof (prf as any).ApprovedByName === 'string'
+              ? (prf as any).ApprovedByName
+              : typeof (prf as any).ApprovedBy === 'string'
+                ? (prf as any).ApprovedBy
+                : typeof (prf as any).ApproverName === 'string'
+                  ? (prf as any).ApproverName
+                  : '';
           const costCode = typeof prf.PurchaseCostCode === 'string' ? prf.PurchaseCostCode : '';
           const year = typeof prf.BudgetYear === 'number' ? prf.BudgetYear : null;
           const statusLabel = typeof prf.Status === 'string' ? prf.Status : '';
@@ -337,7 +345,7 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
               </div>
               <div className="space-y-4">
                 <p className="text-on-surface-variant text-sm leading-relaxed max-w-2xl">{title}</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-6 pt-4">
                   <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-bold text-outline uppercase tracking-wider">Department</span>
                     <span className="text-sm font-semibold text-on-surface flex items-center gap-1.5">
@@ -350,6 +358,13 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
                     <span className="text-sm font-semibold text-on-surface flex items-center gap-1.5">
                       <User className="w-4 h-4 text-primary" />
                       {requestor || '-'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold text-outline uppercase tracking-wider">Approved By</span>
+                    <span className="text-sm font-semibold text-on-surface flex items-center gap-1.5">
+                      <CheckCircle className="w-4 h-4 text-tertiary" />
+                      {approvedBy || '-'}
                     </span>
                   </div>
                   <div className="flex flex-col gap-1">
