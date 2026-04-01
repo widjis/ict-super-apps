@@ -19,6 +19,9 @@ import WifiNetworkScreen from './screens/WifiNetworkScreen';
 import RegisterDeviceScreen from './screens/RegisterDeviceScreen';
 import CheckDeviceStatusScreen from './screens/CheckDeviceStatusScreen';
 import LeaseExpirationReportScreen from './screens/LeaseExpirationReportScreen';
+import HelpdeskScreen from './screens/HelpdeskScreen';
+import AssetsLicenseComplianceScreen from './screens/AssetsLicenseComplianceScreen';
+import AssetLookupScreen from './screens/AssetLookupScreen';
 import { clearSavedSession, getAuthToken, getAuthUserRaw, getBiometricEnabled, setAuthToken } from './auth/storage';
 import { getApiBaseUrl } from './lib/api';
 
@@ -32,6 +35,9 @@ const VALID_TABS = new Set([
   'user-profile',
   'prf-monitoring',
   'prf-details',
+  'helpdesk',
+  'assets-license',
+  'asset-lookup',
   'wifi-network',
   'register-device',
   'check-device-status',
@@ -85,7 +91,15 @@ export default function App() {
           return 'user-management';
         }
         if (current === 'register-device' || current === 'check-device-status' || current === 'lease-expiration') return 'wifi-network';
-        if (current === 'wifi-network' || current === 'user-management' || current === 'prf-monitoring') return 'hub';
+        if (
+          current === 'wifi-network' ||
+          current === 'user-management' ||
+          current === 'prf-monitoring' ||
+          current === 'helpdesk' ||
+          current === 'assets-license' ||
+          current === 'asset-lookup'
+        )
+          return 'hub';
         if (current === 'profile' || current === 'hub' || current === 'monitoring' || current === 'service') return 'home';
 
         CapacitorApp.exitApp();
@@ -222,6 +236,9 @@ export default function App() {
       case 'user-management': return 'User Management';
       case 'prf-monitoring': return 'PRF Monitoring';
       case 'prf-details': return 'PRF Details';
+      case 'helpdesk': return 'Helpdesk';
+      case 'assets-license': return 'Assets & License Compliance';
+      case 'asset-lookup': return 'Asset Lookup';
       case 'wifi-network': return 'WiFi & Network';
       case 'register-device': return 'Register Device';
       case 'check-device-status': return 'Check Device Status';
@@ -232,12 +249,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface font-body text-on-surface">
-      {activeTab !== 'prf-details' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && activeTab !== 'user-profile' && (
+      {activeTab !== 'prf-details' && activeTab !== 'assets-license' && activeTab !== 'asset-lookup' && activeTab !== 'register-device' && activeTab !== 'check-device-status' && activeTab !== 'lease-expiration' && activeTab !== 'user-profile' && (
         <TopBar 
           title={getTopBarTitle()} 
-          showBack={activeTab === 'profile' || activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'wifi-network'} 
+          showBack={activeTab === 'profile' || activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'helpdesk' || activeTab === 'wifi-network'} 
           onBack={() => {
-            if (activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'wifi-network') setActiveTab('hub');
+            if (activeTab === 'user-management' || activeTab === 'prf-monitoring' || activeTab === 'helpdesk' || activeTab === 'wifi-network')
+              setActiveTab('hub');
             else setActiveTab('home');
           }}
           menuItems={
@@ -246,6 +264,11 @@ export default function App() {
                   { label: 'Hub', onClick: () => setActiveTab('hub') },
                   { label: 'Logout', onClick: logout },
                 ]
+              : activeTab === 'helpdesk'
+                ? [
+                    { label: 'Hub', onClick: () => setActiveTab('hub') },
+                    { label: 'Logout', onClick: logout },
+                  ]
               : activeTab === 'user-management' || activeTab === 'wifi-network'
                 ? [{ label: 'Logout', onClick: logout }]
                 : []
@@ -275,6 +298,11 @@ export default function App() {
         )}
         {activeTab === 'prf-monitoring' && <PrfMonitoringScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'prf-details' && <PrfDetailsScreen onBack={() => setActiveTab('prf-monitoring')} />}
+        {activeTab === 'helpdesk' && <HelpdeskScreen />}
+        {activeTab === 'assets-license' && (
+          <AssetsLicenseComplianceScreen onBack={() => setActiveTab('hub')} onNavigate={(tab) => setActiveTab(tab)} />
+        )}
+        {activeTab === 'asset-lookup' && <AssetLookupScreen onBack={() => setActiveTab('assets-license')} />}
         {activeTab === 'wifi-network' && <WifiNetworkScreen onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'register-device' && (
           <>

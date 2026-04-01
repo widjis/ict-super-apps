@@ -26,7 +26,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
     },
     { 
       icon: ShieldCheck, 
-      title: 'License & Compliance', 
+      title: 'Assets & License Compliance', 
       desc: 'Audit trails and software entitlements', 
       colorClasses: 'bg-error-container/10 text-error group-hover:bg-error group-hover:text-on-error' 
     },
@@ -89,6 +89,8 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
                   if (feature.title === 'User Management') onNavigate('user-management');
                   if (feature.title === 'PRF Monitoring') onNavigate('prf-monitoring');
                   if (feature.title === 'WiFi & Network') onNavigate('wifi-network');
+                  if (feature.title === 'Helpdesk') onNavigate('helpdesk');
+                  if (feature.title === 'Assets & License Compliance') onNavigate('assets-license');
                 }
               }}
               className="bg-surface-container-lowest p-5 rounded-2xl shadow-[0_8px_24px_rgba(42,52,57,0.04)] flex flex-col gap-4 border border-transparent hover:border-primary/10 transition-all active:scale-95 group text-left"
