@@ -51,7 +51,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
   ];
 
   return (
-    <div className="max-w-md mx-auto px-6 pt-8 pb-12">
+    <div className="max-w-md mx-auto px-6 pt-8 pb-32">
       {/* Hero Section */}
       <section className="mb-10">
         <div className="relative overflow-hidden rounded-3xl aspect-[16/9] mb-6 shadow-xl">
@@ -107,33 +107,7 @@ export default function HubScreen({ onNavigate }: HubScreenProps) {
         })}
       </div>
 
-      {/* Recent Activity Asymmetric Layout */}
-      <section className="mt-12">
-        <div className="flex justify-between items-end mb-6">
-          <h2 className="font-headline font-bold text-xl text-on-surface">Recent Alerts</h2>
-          <button className="text-primary font-label text-xs font-bold uppercase tracking-widest hover:opacity-80 transition-opacity">View History</button>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="bg-surface-container-low p-4 rounded-3xl flex items-center gap-4">
-            <div className="w-2 h-10 bg-error rounded-full"></div>
-            <div className="flex-1">
-              <p className="text-on-surface font-semibold text-sm">Critical Latency Detected</p>
-              <p className="text-on-surface-variant text-xs mt-0.5">Node: NYC-CORE-04 • 2m ago</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-outline" />
-          </div>
-          
-          <div className="bg-surface-container-lowest p-4 rounded-3xl flex items-center gap-4 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
-            <div className="w-2 h-10 bg-tertiary rounded-full"></div>
-            <div className="flex-1">
-              <p className="text-on-surface font-semibold text-sm">Patch Deployment Success</p>
-              <p className="text-on-surface-variant text-xs mt-0.5">Vulnerability fix applied to 142 endpoints</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-outline" />
-          </div>
-        </div>
-      </section>
+      
     </div>
   );
 }
