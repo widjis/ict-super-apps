@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "jose": "^6.1.0",
     "ldapts": "^8.0.10",
     "mssql": "^11.0.1",
     "node-pg-migrate": "^8.0.0",
+    "node-routeros": "^1.6.8",
     "pg": "^8.16.3",
     "react-example": "file:.."
   },
