@@ -1,5 +1,5 @@
 import mssql from 'mssql';
-import { getPool as getPostgresPool } from './db.js';
+import { getPool as getPostgresPool } from '../../core/db/pg.js';
 
 function getBooleanEnv(name, defaultValue) {
   const raw = process.env[name];
@@ -204,3 +204,4 @@ export async function getStoredEmployeePhoto(employeeId) {
     updatedAt: row.updated_at
   };
 }
+

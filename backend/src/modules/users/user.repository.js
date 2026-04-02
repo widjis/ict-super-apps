@@ -1,4 +1,4 @@
-import { getPool } from './db.js';
+import { getPool } from '../../core/db/pg.js';
 
 function ensureString(value) {
   return typeof value === 'string' ? value : null;

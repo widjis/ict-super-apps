@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
-    "sync:photo": "node src/carddb-sync-photos.js",
-    "carddb:sync-photos": "node src/carddb-sync-photos.js",
-    "db:migrate": "node src/db-migrate.js"
+    "dev": "node --watch src/core/server/server.js",
+    "start": "node src/core/server/server.js",
+    "sync:photo": "node src/modules/carddb/cli/sync-photos.js",
+    "carddb:sync-photos": "node src/modules/carddb/cli/sync-photos.js",
+    "db:migrate": "node src/core/db/db-migrate.js"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

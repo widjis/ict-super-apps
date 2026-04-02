@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
 import mssql from 'mssql';
-import { getPool as getPostgresPool } from './db.js';
-import { getActiveDirectoryUserBySamAccountName, listActiveDirectoryUsersPaginated } from './ldap.js';
-import { syncEmployeePhotosFromCardDb } from './carddb-photo-sync.js';
+import { getPool as getPostgresPool } from '../../../core/db/pg.js';
+import { getActiveDirectoryUserBySamAccountName, listActiveDirectoryUsersPaginated } from '../../../integrations/ldap/ldap.client.js';
+import { syncEmployeePhotosFromCardDb } from '../carddb-photo.service.js';
 
 dotenv.config();
 
@@ -381,7 +381,7 @@ async function main() {
 
     if (!args.all) {
       process.stderr.write(
-        'Usage: node src/carddb-sync-photos.js --username <samAccountName> | --employeeId <id> | --all [--limit N] | --probe | --stats\n'
+        'Usage: node src/modules/carddb/cli/sync-photos.js --username <samAccountName> | --employeeId <id> | --all [--limit N] | --probe | --stats\n'
       );
       process.exitCode = 2;
       return;
@@ -410,3 +410,4 @@ main().catch((err) => {
   if (typeof err?.message === 'string' && err.message) process.stderr.write(`${err.message}\n`);
   process.exitCode = 1;
 });
+
