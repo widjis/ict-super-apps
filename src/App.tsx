@@ -53,6 +53,21 @@ function getTabFromLocation() {
 }
 
 export default function App() {
+function parseJsonRecord(raw: string) {
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function getStringField(obj: Record<string, unknown> | null, key: string) {
+  const v = obj ? obj[key] : undefined;
+  return typeof v === 'string' ? v : null;
+}
+
   const [booting, setBooting] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [biometricUnlocked, setBiometricUnlocked] = useState(true);
@@ -194,10 +209,10 @@ export default function App() {
     if (!raw) return null;
 
     try {
-      const user = JSON.parse(raw) as any;
-      const displayName = typeof user?.displayName === 'string' ? user.displayName : null;
-      const email = typeof user?.email === 'string' ? user.email : null;
-      const username = typeof user?.username === 'string' ? user.username : null;
+      const user = parseJsonRecord(raw);
+      const displayName = getStringField(user, 'displayName');
+      const email = getStringField(user, 'email');
+      const username = getStringField(user, 'username');
 
       const fromDisplayName = displayName?.trim().split(/\s+/)[0] ?? null;
       if (fromDisplayName) return fromDisplayName;

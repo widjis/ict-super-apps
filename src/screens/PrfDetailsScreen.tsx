@@ -10,6 +10,35 @@ interface PrfDetailsScreenProps {
   onBack: () => void;
 }
 
+function parseJsonRecord(raw: string) {
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function getStringField(obj: Record<string, unknown> | null, key: string) {
+  const v = obj ? obj[key] : undefined;
+  return typeof v === 'string' ? v : null;
+}
+
+function getNumberField(obj: Record<string, unknown> | null, key: string) {
+  const v = obj ? obj[key] : undefined;
+  return typeof v === 'number' ? v : null;
+}
+
+function getFirstStringField(obj: Record<string, unknown> | null, keys: string[]) {
+  if (!obj) return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === 'string' && v.trim().length > 0) return v.trim();
+  }
+  return null;
+}
+
 export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const [activeTab, setActiveTab] = useState<'items' | 'documents' | 'activity'>('items');
   const [prf, setPrf] = useState<PomonPrfWithItems | null>(null);
@@ -19,7 +48,7 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const [documents, setDocuments] = useState<PomonPrfDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
-  const [checkItem, setCheckItem] = useState<any | null>(null);
+  const [checkItem, setCheckItem] = useState<Record<string, unknown> | null>(null);
   const [checkStatus, setCheckStatus] = useState<string>('Pending');
   const [checkNotes, setCheckNotes] = useState<string>('');
   const [pickupName, setPickupName] = useState<string>('');
@@ -36,22 +65,14 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
     try {
       const raw = getAuthUserRaw();
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as any;
-      if (!parsed || typeof parsed !== 'object') return null;
-      return parsed;
+      return parseJsonRecord(raw);
     } catch {
       return null;
     }
   }, []);
 
   const displayName =
-    typeof currentUser?.displayName === 'string'
-      ? currentUser.displayName
-      : typeof currentUser?.username === 'string'
-        ? currentUser.username
-        : typeof currentUser?.upn === 'string'
-          ? currentUser.upn
-          : null;
+    getFirstStringField(currentUser, ['displayName', 'username', 'upn']) ?? null;
 
   const statusOptions = useMemo(() => {
     return ['Pending', 'Verified', 'Issue', 'Picked Up'];
@@ -142,14 +163,8 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
 
   const prfNo = typeof prf?.PRFNo === 'string' ? prf?.PRFNo : null;
   const submitBy = typeof prf?.SubmitBy === 'string' ? prf?.SubmitBy : null;
-  const approvedBy =
-    typeof (prf as any)?.ApprovedByName === 'string'
-      ? (prf as any).ApprovedByName
-      : typeof (prf as any)?.ApprovedBy === 'string'
-        ? (prf as any).ApprovedBy
-        : typeof (prf as any)?.ApproverName === 'string'
-          ? (prf as any).ApproverName
-          : null;
+  const prfRec = prf as unknown as Record<string, unknown> | null;
+  const approvedBy = getFirstStringField(prfRec, ['ApprovedByName', 'ApprovedBy', 'ApproverName']);
   const submittedAtRaw = typeof prf?.DateSubmit === 'string' ? prf.DateSubmit : typeof prf?.RequestDate === 'string' ? prf.RequestDate : null;
   const submittedAt = submittedAtRaw ? new Date(submittedAtRaw) : null;
   const statusLabel = typeof prf?.Status === 'string' ? prf.Status : null;
@@ -160,29 +175,27 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
   const requestedAmount = typeof prf?.RequestedAmount === 'number' ? prf.RequestedAmount : null;
   const approvedAmount = typeof prf?.ApprovedAmount === 'number' ? prf.ApprovedAmount : null;
   const requiredFor = typeof prf?.RequiredFor === 'string' ? prf.RequiredFor : null;
-  const summary = typeof prf?.SumDescriptionRequested === 'string' ? (prf as any).SumDescriptionRequested : typeof prf?.Description === 'string' ? prf.Description : null;
+  const summary = getStringField(prfRec, 'SumDescriptionRequested') ?? (typeof prf?.Description === 'string' ? prf.Description : null);
   const items = Array.isArray(prf?.Items) ? prf.Items : [];
   const filteredItems = useMemo(() => {
     const q = itemSearch.trim().toLowerCase();
     if (!q) return items;
-    return (items as any[]).filter((it) => {
+    return items.filter((it) => {
       const values = [
-        typeof it?.ItemName === 'string' ? it.ItemName : '',
-        typeof it?.Description === 'string' ? it.Description : '',
-        typeof it?.OriginalPONumber === 'string' ? it.OriginalPONumber : '',
-        typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : '',
-        typeof it?.Status === 'string' ? it.Status : '',
-      ]
-        .filter(Boolean)
-        .map((s) => String(s).toLowerCase());
+        getStringField(it, 'ItemName') ?? '',
+        getStringField(it, 'Description') ?? '',
+        getStringField(it, 'OriginalPONumber') ?? '',
+        getStringField(it, 'SplitPONumber') ?? '',
+        getStringField(it, 'Status') ?? '',
+      ].filter(Boolean).map((s) => s.toLowerCase());
       return values.some((s) => s.includes(q));
     });
   }, [itemSearch, items]);
 
-  const openCheckGoods = (it: any) => {
+  const openCheckGoods = (it: Record<string, unknown>) => {
     setError(null);
     setCheckItem(it);
-    const itemId = typeof it?.PRFItemID === 'number' ? it.PRFItemID : null;
+    const itemId = getNumberField(it, 'PRFItemID');
     const existing = itemId ? checkMap[itemId] : undefined;
     const curStatus = existing?.check_status ?? 'Pending';
     setCheckStatus(curStatus);
@@ -190,19 +203,11 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
     setCheckNotes(curNotes);
 
     const pickedBy =
-      typeof it?.PickedUpBy === 'string'
-        ? it.PickedUpBy
-        : typeof it?.pickedUpBy === 'string'
-          ? it.pickedUpBy
-          : '';
+      getFirstStringField(it, ['PickedUpBy', 'pickedUpBy']) ?? '';
     setPickupName(pickedBy);
 
     const pickedAtRaw =
-      typeof it?.PickedUpDate === 'string'
-        ? it.PickedUpDate
-        : typeof it?.pickedUpDate === 'string'
-          ? it.pickedUpDate
-          : '';
+      getFirstStringField(it, ['PickedUpDate', 'pickedUpDate']) ?? '';
     if (pickedAtRaw) {
       const d = new Date(pickedAtRaw);
       if (Number.isFinite(d.getTime())) {
@@ -232,7 +237,7 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
       });
     }
 
-    const prfUpdatedAtRaw = typeof (prf as any)?.UpdatedAt === 'string' ? (prf as any).UpdatedAt : null;
+    const prfUpdatedAtRaw = getStringField(prfRec, 'UpdatedAt');
     const prfUpdatedAt = prfUpdatedAtRaw ? new Date(prfUpdatedAtRaw) : null;
     if (prfUpdatedAt && Number.isFinite(prfUpdatedAt.getTime())) {
       list.push({
@@ -251,19 +256,19 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
       list.push({ t, title: 'Document uploaded', subtitle: name, kind: 'document' });
     }
 
-    for (const it of items as any[]) {
-      const splitPo = typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : null;
-      const updatedAtRaw = typeof it?.UpdatedAt === 'string' ? it.UpdatedAt : null;
+    for (const it of items) {
+      const splitPo = getStringField(it, 'SplitPONumber');
+      const updatedAtRaw = getStringField(it, 'UpdatedAt');
       const when = updatedAtRaw ? new Date(updatedAtRaw) : null;
       const t = when && Number.isFinite(when.getTime()) ? when.getTime() : 0;
       if (splitPo) {
         list.push({ t, title: 'Split PO created', subtitle: splitPo, kind: 'split' });
       }
 
-      const pickedUpAtRaw = typeof it?.PickedUpDate === 'string' ? it.PickedUpDate : null;
+      const pickedUpAtRaw = getStringField(it, 'PickedUpDate');
       const pickedUpAt = pickedUpAtRaw ? new Date(pickedUpAtRaw) : null;
       if (pickedUpAt && Number.isFinite(pickedUpAt.getTime())) {
-        const itemName = typeof it?.ItemName === 'string' ? it.ItemName : 'Item';
+        const itemName = getStringField(it, 'ItemName') ?? 'Item';
         list.push({ t: pickedUpAt.getTime(), title: 'Item picked up', subtitle: itemName, kind: 'picked' });
       }
     }
@@ -431,26 +436,16 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                 </div>
               )}
 
-              {filteredItems.map((it: any) => {
-                const itemId = typeof it?.PRFItemID === 'number' ? it.PRFItemID : undefined;
-                const name = typeof it?.ItemName === 'string' ? it.ItemName : '—';
-                const itemStatus = typeof it?.Status === 'string' ? it.Status : '—';
-                const qty = typeof it?.Quantity === 'number' ? it.Quantity : null;
-                const total = typeof it?.TotalPrice === 'number' ? it.TotalPrice : null;
-                const originalPo = typeof it?.OriginalPONumber === 'string' ? it.OriginalPONumber : null;
-                const splitPo = typeof it?.SplitPONumber === 'string' ? it.SplitPONumber : null;
-                const pickedBy =
-                  typeof it?.PickedUpBy === 'string'
-                    ? it.PickedUpBy
-                    : typeof it?.pickedUpBy === 'string'
-                      ? it.pickedUpBy
-                      : null;
-                const pickedAtRaw =
-                  typeof it?.PickedUpDate === 'string'
-                    ? it.PickedUpDate
-                    : typeof it?.pickedUpDate === 'string'
-                      ? it.pickedUpDate
-                      : null;
+              {filteredItems.map((it) => {
+                const itemId = getNumberField(it, 'PRFItemID') ?? undefined;
+                const name = getStringField(it, 'ItemName') ?? '—';
+                const itemStatus = getStringField(it, 'Status') ?? '—';
+                const qty = getNumberField(it, 'Quantity');
+                const total = getNumberField(it, 'TotalPrice');
+                const originalPo = getStringField(it, 'OriginalPONumber');
+                const splitPo = getStringField(it, 'SplitPONumber');
+                const pickedBy = getFirstStringField(it, ['PickedUpBy', 'pickedUpBy']);
+                const pickedAtRaw = getFirstStringField(it, ['PickedUpDate', 'pickedUpDate']);
                 const pickedAt = pickedAtRaw ? new Date(pickedAtRaw) : null;
                 const check = itemId ? checkMap[itemId] : undefined;
                 const checkLabel = typeof check?.check_status === 'string' ? check.check_status : null;
@@ -694,7 +689,7 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
               <div className="min-w-0">
                 <h3 className="text-lg font-extrabold text-slate-900 truncate">Check Goods</h3>
                 <p className="text-sm text-slate-500 truncate">
-                  {typeof checkItem?.ItemName === 'string' ? checkItem.ItemName : 'Item'}
+                  {getStringField(checkItem, 'ItemName') ?? 'Item'}
                 </p>
               </div>
               <button
@@ -767,9 +762,9 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
               </div>
 
               <button
-                disabled={checkSaving || typeof checkItem?.PRFItemID !== 'number'}
+                disabled={checkSaving || getNumberField(checkItem, 'PRFItemID') === null}
                 onClick={() => {
-                  const itemId = typeof checkItem?.PRFItemID === 'number' ? checkItem.PRFItemID : null;
+                  const itemId = getNumberField(checkItem, 'PRFItemID');
                   if (!itemId) return;
                   if (!prfId) return;
                   setCheckSaving(true);
@@ -790,7 +785,7 @@ export default function PrfDetailsScreen({ onBack }: PrfDetailsScreenProps) {
                       const pickedUpBy = pickupName.trim();
                       const pickedUpDate = pickupDate ? new Date(`${pickupDate}T00:00:00Z`).toISOString() : '';
                       if (pickedUpBy || pickedUpDate) {
-                        const currentStatus = typeof checkItem?.Status === 'string' ? checkItem.Status : undefined;
+                        const currentStatus = getStringField(checkItem, 'Status') ?? undefined;
                         await pomonUpdatePrfItem(itemId, {
                           status: currentStatus,
                           pickedUpBy: pickedUpBy ? pickedUpBy : undefined,

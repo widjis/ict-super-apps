@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Bell, ChevronDown, Laptop, Monitor, MoreVertical, PackageSearch, Plus, Search, Server, Smartphone, Undo2 } from 'lucide-react';
 import MePhoto from '../components/MePhoto';
 
 type AssetStatus = 'Deployed' | 'Ready' | 'Archived' | 'Pending';
 type AssetCategory = 'Laptops' | 'Mobile' | 'Infrastructure' | 'Peripherals';
-type IconNode = JSX.Element;
+type IconNode = ReactNode;
 
 type Asset = {
   name: string;

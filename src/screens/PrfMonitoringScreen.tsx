@@ -18,6 +18,18 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
   const [error, setError] = useState<string | null>(null);
 
   const normalize = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const asRecord = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+  const getStringFromRecord = (obj: Record<string, unknown> | null, key: string) => {
+    const v = obj ? obj[key] : undefined;
+    return typeof v === 'string' ? v : '';
+  };
+  const getFirstStringField = (obj: Record<string, unknown>, keys: string[]) => {
+    for (const k of keys) {
+      const v = obj[k];
+      if (typeof v === 'string' && v.trim().length > 0) return v.trim();
+    }
+    return '';
+  };
 
   const matchesSearch = (prf: PomonPrfSummary, q: string) => {
     const query = q.trim().toLowerCase();
@@ -25,18 +37,20 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
     const values: string[] = [
       normalize(prf.PRFNo),
       normalize(prf.Title),
-      normalize((prf as any).RequestorName),
+      normalize(prf.RequestorName),
       normalize(prf.PurchaseCostCode),
     ];
 
-    const list = (prf as any)?.Items;
+    const list = (prf as Record<string, unknown>)['Items'];
     if (Array.isArray(list)) {
-      for (const it of list) {
+      for (const raw of list) {
+        const it = asRecord(raw);
+        if (!it) continue;
         values.push(
-          normalize(it?.ItemName),
-          normalize(it?.Description),
-          normalize(it?.OriginalPONumber),
-          normalize(it?.SplitPONumber)
+          normalize(getStringFromRecord(it, 'ItemName')),
+          normalize(getStringFromRecord(it, 'Description')),
+          normalize(getStringFromRecord(it, 'OriginalPONumber')),
+          normalize(getStringFromRecord(it, 'SplitPONumber'))
         );
       }
     }
@@ -50,9 +64,13 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
   };
 
   const isSplitPrf = (prf: PomonPrfSummary) => {
-    const list = (prf as any)?.Items;
+    const list = (prf as Record<string, unknown>)['Items'];
     if (!Array.isArray(list)) return false;
-    return list.some((it: any) => typeof it?.SplitPONumber === 'string' && it.SplitPONumber.trim().length > 0);
+    return list.some((raw) => {
+      const it = asRecord(raw);
+      const split = typeof it?.SplitPONumber === 'string' ? it.SplitPONumber.trim() : '';
+      return split.length > 0;
+    });
   };
 
   const currency = useMemo(() => {
@@ -101,11 +119,11 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
           let list = resp.data as unknown as PomonPrfSummary[];
 
           if (status !== 'all') {
-            list = list.filter((p) => normalize((p as any).Status) === status);
+            list = list.filter((p) => normalize(p.Status) === status);
           }
 
           if (department !== 'All Departments') {
-            list = list.filter((p) => normalize((p as any).Department) === department);
+            list = list.filter((p) => normalize(p.Department) === department);
           }
 
           if (debouncedSearch) {
@@ -288,14 +306,7 @@ export default function PrfMonitoringScreen({ onNavigate }: PrfMonitoringScreenP
           const title = typeof prf.Title === 'string' ? prf.Title : '';
           const dept = typeof prf.Department === 'string' ? prf.Department : '';
           const requestor = typeof prf.RequestorName === 'string' ? prf.RequestorName : '';
-          const approvedBy =
-            typeof (prf as any).ApprovedByName === 'string'
-              ? (prf as any).ApprovedByName
-              : typeof (prf as any).ApprovedBy === 'string'
-                ? (prf as any).ApprovedBy
-                : typeof (prf as any).ApproverName === 'string'
-                  ? (prf as any).ApproverName
-                  : '';
+          const approvedBy = getFirstStringField(prf as Record<string, unknown>, ['ApprovedByName', 'ApprovedBy', 'ApproverName']);
           const costCode = typeof prf.PurchaseCostCode === 'string' ? prf.PurchaseCostCode : '';
           const year = typeof prf.BudgetYear === 'number' ? prf.BudgetYear : null;
           const statusLabel = typeof prf.Status === 'string' ? prf.Status : '';

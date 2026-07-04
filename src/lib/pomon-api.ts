@@ -19,16 +19,23 @@ export type PomonApiResponse<T> = {
   message?: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 function normalizePomonApiResponse<T>(raw: unknown) {
   if (raw === null || raw === undefined) return { success: false, data: raw as T, message: 'INVALID_RESPONSE' } satisfies PomonApiResponse<T>;
-  if (typeof raw === 'object') {
-    const o = raw as any;
-    if (typeof o?.success === 'boolean') return o as PomonApiResponse<T>;
-    if (typeof o?.ok === 'boolean') {
+  if (Array.isArray(raw)) return { success: true, data: raw as T } satisfies PomonApiResponse<T>;
+  if (isRecord(raw)) {
+    const success = raw['success'];
+    if (typeof success === 'boolean') return raw as unknown as PomonApiResponse<T>;
+    const ok = raw['ok'];
+    if (typeof ok === 'boolean') {
+      const error = raw['error'];
       return {
-        success: Boolean(o.ok),
-        data: o.data as T,
-        message: typeof o.error === 'string' ? o.error : undefined,
+        success: ok,
+        data: raw['data'] as T,
+        message: typeof error === 'string' ? error : undefined,
       } satisfies PomonApiResponse<T>;
     }
   }
