@@ -22,5 +22,5 @@ services:
       - ./backend/.env
     network_mode: host
     environment:
-      PORT: "5058"
+      PORT: "5059"
       CORS_ORIGIN: "*"
