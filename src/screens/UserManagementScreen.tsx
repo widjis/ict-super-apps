@@ -26,6 +26,7 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [unlockStates, setUnlockStates] = useState<Record<string, UnlockState>>({});
+  const [confirmUnlockId, setConfirmUnlockId] = useState<string | null>(null);
   const onUnlock = useMemo(() => createAccountUnlocker(authedPostJson,
     (id, state) => setUnlockStates(previous => ({ ...previous, [id]: state })),
     (user) => setUsers(previous => previous.map(row => row.id === user.id ? { ...row, status: user.status } : row))
@@ -187,9 +188,10 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    void onUnlock(u.id);
+                    setConfirmUnlockId(u.id);
                   }}
-                  disabled={unlockStates[u.id]?.busy || !isLocked}
+                  disabled={unlockStates[u.id]?.busy}
+                  aria-expanded={confirmUnlockId === u.id}
                   aria-busy={unlockStates[u.id]?.busy ?? false}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 ${
                     isLocked
@@ -201,6 +203,19 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
                   {unlockStates[u.id]?.busy ? 'Unlocking...' : 'Unlock Account'}
                 </button>
               </div>
+              {confirmUnlockId === u.id && (
+                <div role="group" aria-label="Confirm account unlock" className="mt-3 rounded-xl bg-surface-container-low p-4" onClick={(e) => e.stopPropagation()}>
+                  <p className="text-sm font-semibold">Clear AD lockout for {u.displayName || u.id} ({u.id})?</p>
+                  <p className="mt-1 text-sm text-on-surface-variant">Directory status is a snapshot. The server will check your authorization and verify the unlock. This does not reset the password or enable a disabled account.</p>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" autoFocus onClick={() => setConfirmUnlockId(null)} className="flex-1 rounded-xl px-3 py-3 bg-surface-container-high font-bold text-sm">Cancel</button>
+                    <button type="button" disabled={unlockStates[u.id]?.busy} onClick={() => {
+                      setConfirmUnlockId(null);
+                      void onUnlock(u.id);
+                    }} className="flex-1 rounded-xl px-3 py-3 bg-blue-600 text-white font-bold text-sm disabled:opacity-60">Confirm unlock</button>
+                  </div>
+                </div>
+              )}
               {unlockStates[u.id]?.error && <p role="alert" className="mt-3 text-sm text-red-600">{unlockStates[u.id].error}</p>}
               {unlockStates[u.id]?.success && <p role="status" className="mt-3 text-sm text-emerald-700">{unlockStates[u.id].success}</p>}
             </div>
