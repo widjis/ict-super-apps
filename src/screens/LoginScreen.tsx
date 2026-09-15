@@ -1,16 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Shield, HelpCircle, Terminal, User, Lock, EyeOff, ArrowRight, Key, Fingerprint } from 'lucide-react';
+import React, { useState } from 'react';
+import { Shield, HelpCircle, Terminal, User, Lock, EyeOff, ArrowRight } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { BiometricAuth } from '@aparajita/capacitor-biometric-auth';
-import { getApiBaseUrl } from '../lib/api';
+import { sessionClient } from '../auth/session';
 import { getCopyrightText } from '../lib/copyright';
 import {
   clearBiometricCredentials,
-  getBiometricCredentials,
+  getAuthToken,
   getBiometricEnabled,
-  setAuthToken,
   setAuthUserRaw,
-  setBiometricCredentials,
   setBiometricEnabled,
 } from '../auth/storage';
 
@@ -25,26 +23,6 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enableBiometric, setEnableBiometric] = useState(() => getBiometricEnabled());
-  const [biometricLoginReady, setBiometricLoginReady] = useState(false);
-
-  const apiBaseUrl = useMemo(() => {
-    return getApiBaseUrl();
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    if (!Capacitor.isNativePlatform()) return;
-
-    void (async () => {
-      const creds = await getBiometricCredentials();
-      if (!active) return;
-      setBiometricLoginReady(Boolean(creds));
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,13 +30,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
     setLoading(true);
 
     try {
-      const resp = await fetch(`${apiBaseUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      const data = await resp.json().catch(() => ({}));
+      const { response: resp, data } = await sessionClient.login(username, password);
       if (!resp.ok || !data?.ok) {
         const code = typeof data?.error === 'string' ? data.error : null;
         if (code === 'INVALID_CREDENTIALS' || code === 'NOT_FOUND') {
@@ -75,9 +47,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
         return;
       }
 
-      if (typeof data.token === 'string') {
-        await setAuthToken(data.token);
-      }
+      await clearBiometricCredentials(); // retire passwords; biometrics only unlock a bounded session
       if (data.user) {
         setAuthUserRaw(JSON.stringify(data.user));
       }
@@ -85,7 +55,6 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
       if (enableBiometric) {
         if (!Capacitor.isNativePlatform()) {
           setBiometricEnabled(false);
-          setBiometricLoginReady(false);
           await clearBiometricCredentials();
         } else {
           try {
@@ -100,102 +69,24 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
                 androidSubtitle: 'Authenticate to enable biometric unlock',
                 androidConfirmationRequired: false,
               });
-              await setBiometricCredentials({ username, password });
               setBiometricEnabled(true);
-              setBiometricLoginReady(true);
             } else {
               setBiometricEnabled(false);
-              setBiometricLoginReady(false);
               await clearBiometricCredentials();
             }
           } catch {
             setBiometricEnabled(false);
-            setBiometricLoginReady(false);
             await clearBiometricCredentials();
           }
         }
       } else {
         setBiometricEnabled(false);
-        setBiometricLoginReady(false);
         await clearBiometricCredentials();
       }
 
-      onLogin();
+      if (await getAuthToken()) onLogin();
     } catch {
       setError('Unable to reach the server.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBiometricLogin = async () => {
-    setError(null);
-    setLoading(true);
-
-    try {
-      if (!Capacitor.isNativePlatform()) {
-        setError('Biometric login is only available on mobile.');
-        return;
-      }
-
-      const info = await BiometricAuth.checkBiometry();
-      if (!info.isAvailable && !info.deviceIsSecure) {
-        setError('Biometrics are not available on this device.');
-        return;
-      }
-
-      await BiometricAuth.authenticate({
-        reason: 'Sign in',
-        cancelTitle: 'Cancel',
-        allowDeviceCredential: true,
-        iosFallbackTitle: 'Use passcode',
-        androidTitle: 'Sign in',
-        androidSubtitle: 'Authenticate to sign in',
-        androidConfirmationRequired: false,
-      });
-
-      const creds = await getBiometricCredentials();
-      if (!creds) {
-        setError('No biometric login is set up on this device.');
-        setBiometricEnabled(false);
-        setBiometricLoginReady(false);
-        return;
-      }
-
-      const resp = await fetch(`${apiBaseUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: creds.username, password: creds.password }),
-      });
-
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data?.ok) {
-        const code = typeof data?.error === 'string' ? data.error : null;
-        if (code === 'INVALID_CREDENTIALS' || code === 'NOT_FOUND') {
-          setError('Login failed. Check your username and password.');
-        } else if (code === 'NOT_ALLOWED') {
-          setError('Login blocked. Your account is not in the allowed AD group.');
-        } else if (code === 'LDAP_TLS_FAILED') {
-          setError('LDAPS connection failed (TLS/certificate). Check backend TLS configuration.');
-        } else if (code?.startsWith('LDAP_')) {
-          setError(`Login failed (${code}).`);
-        } else {
-          setError('Login failed. Please try again.');
-        }
-        return;
-      }
-
-      if (typeof data.token === 'string') {
-        await setAuthToken(data.token);
-      }
-      if (data.user) {
-        setAuthUserRaw(JSON.stringify(data.user));
-      }
-
-      setBiometricEnabled(true);
-      onLogin();
-    } catch {
-      setError('Authentication was canceled or failed.');
     } finally {
       setLoading(false);
     }
@@ -292,7 +183,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
                   disabled={loading}
                   className="h-4 w-4 rounded border-outline-variant/40 text-primary focus:ring-primary/40"
                 />
-                <span>Enable biometric login on this device</span>
+                <span>Enable biometric unlock on this device</span>
               </label>
             )}
 
@@ -315,24 +206,6 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
 
           {/* Secondary Actions: Asymmetric Spacing */}
           <div className="mt-6 pt-6 sm:mt-8 sm:pt-8 flex flex-col gap-4 sm:gap-6 relative z-10">
-            {Capacitor.isNativePlatform() && (
-              <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={handleBiometricLogin}
-                  disabled={loading || !biometricLoginReady}
-                  className="w-full flex items-center justify-center gap-3 bg-surface-container border border-outline-variant/15 py-3.5 rounded-xl hover:bg-surface-container-high transition-colors disabled:opacity-60 disabled:hover:bg-surface-container"
-                >
-                  <Fingerprint className="w-5 h-5 text-slate-800" />
-                  <span className="text-sm font-semibold text-slate-800">Sign in with biometrics</span>
-                </button>
-                {!biometricLoginReady && (
-                  <p className="text-xs text-on-surface-variant text-center">
-                    Enable biometric login and sign in once to set it up.
-                  </p>
-                )}
-              </div>
-            )}
             <div className="flex justify-center">
               <a href="#" className="text-sm font-semibold text-primary hover:text-primary-dim transition-colors">Forgot Password?</a>
             </div>
@@ -341,6 +214,7 @@ export default function LoginScreen({ onLogin, onLogout }: LoginScreenProps) {
                 <button
                   type="button"
                   onClick={onLogout}
+                  disabled={loading}
                   className="text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors uppercase tracking-widest"
                 >
                   Clear saved session

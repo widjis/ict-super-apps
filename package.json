@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --import tsx --test test/*.test.ts && npm --prefix backend test",
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "build:mobile": "npm run build && npx cap sync android",

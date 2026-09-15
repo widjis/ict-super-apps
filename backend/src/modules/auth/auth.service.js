@@ -1,9 +1,10 @@
 import { authenticateWithActiveDirectory } from '../../integrations/ldap/ldap.client.js';
+import { getSessionService } from './session.service.js';
 import { signAccessToken } from '../../core/auth/jwt.js';
 import { getPool } from '../../core/db/pg.js';
 import { ensureUserDefaults, insertLoginEvent, replaceUserGroups, upsertUserFromAd } from '../users/user.repository.js';
 
-export async function loginWithUsernamePassword({ username, password, ip, userAgent }) {
+export async function loginWithUsernamePassword({ username, password, ip, userAgent, sessionTransport }) {
   const result = await authenticateWithActiveDirectory({ username, password });
   if (!result.ok) {
     const pool = getPool();
@@ -33,14 +34,17 @@ export async function loginWithUsernamePassword({ username, password, ip, userAg
     client.release();
   }
 
-  const token = await signAccessToken({
+  const claims = {
     sub: userId,
     adDn: result.user.dn,
     username: result.user.username,
     upn: result.user.upn ?? undefined,
     displayName: result.user.displayName ?? undefined,
     email: result.user.email ?? undefined
-  });
+  };
+  const session = ['native', 'web'].includes(sessionTransport)
+    ? await getSessionService().create(claims)
+    : { token: await signAccessToken(claims) }; // old clients keep their existing lifetime
 
-  return { ok: true, status: 200, token, user: { ...result.user, id: userId } };
+  return { ok: true, status: 200, ...session, user: { ...result.user, id: userId } };
 }

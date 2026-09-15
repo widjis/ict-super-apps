@@ -22,7 +22,8 @@ import LeaseExpirationReportScreen from './screens/LeaseExpirationReportScreen';
 import HelpdeskScreen from './screens/HelpdeskScreen';
 import AssetsLicenseComplianceScreen from './screens/AssetsLicenseComplianceScreen';
 import AssetLookupScreen from './screens/AssetLookupScreen';
-import { clearSavedSession, getAuthToken, getAuthUserRaw, getBiometricEnabled, setAuthToken } from './auth/storage';
+import { getAuthUserRaw, getBiometricEnabled, SESSION_KEY } from './auth/storage';
+import { sessionClient, SESSION_EXPIRED_EVENT } from './auth/session';
 import { getApiBaseUrl } from './lib/api';
 
 const VALID_TABS = new Set([
@@ -69,6 +70,8 @@ function getStringField(obj: Record<string, unknown> | null, key: string) {
 }
 
   const [booting, setBooting] = useState(true);
+  const [bootError, setBootError] = useState(false);
+  const [bootAttempt, setBootAttempt] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [biometricUnlocked, setBiometricUnlocked] = useState(true);
   const [activeTab, setActiveTab] = useState(() => getTabFromLocation() ?? 'home');
@@ -134,48 +137,56 @@ function getStringField(obj: Record<string, unknown> | null, key: string) {
 
   useEffect(() => {
     let active = true;
+    setBooting(true);
+    setBootError(false);
     void (async () => {
-      let token = await getAuthToken();
-      if (!active) return;
-
-      if (token) {
-        const apiBaseUrl = getApiBaseUrl();
-        if (apiBaseUrl) {
-          try {
-            const resp = await fetch(`${apiBaseUrl}/api/me`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!resp.ok) {
-              await setAuthToken(null);
-              token = null;
-            }
-          } catch {}
-        }
+      try {
+        const hasSession = await sessionClient.restore(`${getApiBaseUrl()}/api/me`);
+        if (!active) return;
+        const needs = getBiometricEnabled() && Capacitor.isNativePlatform() && hasSession;
+        setIsAuthenticated(hasSession);
+        setBiometricUnlocked(!needs);
+      } catch {
+        if (active) setBootError(true);
+      } finally {
+        if (active) setBooting(false);
       }
-
-      const enabled = getBiometricEnabled();
-      const hasToken = Boolean(token);
-      const needs = enabled && Capacitor.isNativePlatform() && hasToken;
-
-      setIsAuthenticated(hasToken);
-      setBiometricUnlocked(!needs);
-      setBooting(false);
     })();
+    return () => { active = false; };
+  }, [bootAttempt]);
 
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const logout = () => {
-    void (async () => {
-      await clearSavedSession();
+  useEffect(() => {
+    const signedOut = () => {
       setBiometricUnlocked(true);
       setIsAuthenticated(false);
       setActiveTab('home');
       setSelectedUserSam(null);
-    })();
+      setBootError(false);
+    };
+    const storageChanged = (event: StorageEvent) => {
+      if (event.key === SESSION_KEY && !event.newValue) signedOut();
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, signedOut);
+    window.addEventListener('storage', storageChanged);
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, signedOut);
+      window.removeEventListener('storage', storageChanged);
+    };
+  }, []);
+
+  const logout = () => {
+    void sessionClient.logout().catch(() => {
+      window.alert('Logout could not be confirmed by the server. Your session has not been cleared. Please reconnect and retry.');
+    });
   };
+
+  if (bootError) {
+    return <div className="min-h-screen bg-surface flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <p>Unable to verify your session. Your saved session is safe. Check your connection or try again later.</p>
+      <button className="bg-primary text-on-primary rounded-xl px-6 py-3" onClick={() => setBootAttempt(n => n + 1)}>Retry</button>
+      <button onClick={logout}>Logout</button>
+    </div>;
+  }
 
   if (booting) {
     return <div className="min-h-screen bg-surface font-body text-on-surface" />;

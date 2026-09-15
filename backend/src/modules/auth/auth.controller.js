@@ -1,4 +1,5 @@
 import { loginWithUsernamePassword } from './auth.service.js';
+import { sendSession } from './session.controller.js';
 
 export async function loginController(req, res) {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
@@ -11,9 +12,9 @@ export async function loginController(req, res) {
   }
 
   try {
-    const result = await loginWithUsernamePassword({ username, password, ip, userAgent });
+    const result = await loginWithUsernamePassword({ username, password, ip, userAgent, sessionTransport: req.body?.sessionTransport });
     if (!result.ok) return res.status(result.status).json({ ok: false, error: result.error });
-    return res.json({ ok: true, token: result.token, user: result.user });
+    return sendSession(req, res, result);
   } catch (err) {
     const code = typeof err?.code === 'string' ? err.code : 'LOGIN_FAILED';
     if (code === 'LDAP_CONFIG_MISSING' || code === 'JWT_SECRET_MISSING') {

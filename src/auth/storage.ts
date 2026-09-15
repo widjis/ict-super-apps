@@ -1,6 +1,8 @@
 import { Capacitor } from '@capacitor/core';
+import type { SavedSession } from './session-client';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 
+export const SESSION_KEY = 'auth_session_v2';
 const AUTH_TOKEN_KEY = 'auth_token';
 const AUTH_USER_KEY = 'auth_user';
 const BIOMETRIC_ENABLED_KEY = 'biometric_enabled';
@@ -30,7 +32,36 @@ export function setBiometricEnabled(enabled: boolean) {
   localStorage.setItem(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
 }
 
-export async function getAuthToken() {
+export async function getSavedSession(): Promise<SavedSession | null> {
+  let raw: string | null;
+  if (Capacitor.isNativePlatform()) {
+    await initSecureStorage();
+    raw = await SecureStorage.getItem(SESSION_KEY);
+  } else raw = localStorage.getItem(SESSION_KEY);
+  if (raw) {
+    const parsed = JSON.parse(raw) as SavedSession;
+    if (typeof parsed.token !== 'string' || !parsed.token) throw new Error('INVALID_STORED_SESSION');
+    return parsed;
+  }
+  const token = await getLegacyToken();
+  return token ? { token } : null;
+}
+
+export async function saveSession(session: SavedSession) {
+  // One atomic storage record prevents access/refresh pairs being torn on crash.
+  if (Capacitor.isNativePlatform()) {
+    await initSecureStorage();
+    await SecureStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } else {
+    const { token, refreshExpiresAt } = session; // refresh bearer stays in HttpOnly cookie
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, refreshExpiresAt }));
+  }
+  await setAuthToken(null); // remove legacy copy after successfully persisting
+}
+
+export async function getAuthToken() { return (await getSavedSession())?.token ?? null; }
+
+async function getLegacyToken() {
   if (Capacitor.isNativePlatform()) {
     await initSecureStorage();
     return await SecureStorage.getItem(SECURE_TOKEN_KEY);
@@ -89,6 +120,10 @@ export async function clearBiometricCredentials() {
 }
 
 export async function clearSavedSession() {
+  if (Capacitor.isNativePlatform()) {
+    await initSecureStorage();
+    await SecureStorage.removeItem(SESSION_KEY);
+  } else localStorage.removeItem(SESSION_KEY);
   await setAuthToken(null);
   setAuthUserRaw(null);
   setBiometricEnabled(false);

@@ -10,12 +10,12 @@ function getJwtSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function signAccessToken(payload) {
+export async function signAccessToken(payload, expiresAt) {
   const secret = getJwtSecret();
   const jwt = await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
-    .setExpirationTime(process.env.JWT_EXPIRES_IN ?? '12h')
+    .setExpirationTime(expiresAt ?? process.env.JWT_EXPIRES_IN ?? '12h')
     .sign(secret);
   return jwt;
 }

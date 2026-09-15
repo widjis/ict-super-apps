@@ -1,4 +1,4 @@
-import { Client } from 'ldapts';
+import { Attribute, Change, Client } from 'ldapts';
 
 function escapeLdapFilterValue(value) {
   return value.replace(/[\0\(\)\*\\]/g, (ch) => {
@@ -431,33 +431,49 @@ export async function getActiveDirectoryUserBySamAccountName({ samAccountName })
 }
 
 export async function unlockActiveDirectoryUser({ samAccountName }) {
+  if (typeof samAccountName !== 'string' || !samAccountName.trim() || samAccountName !== samAccountName.trim() || samAccountName.length > 256 || /[\x00-\x1f\x7f]/.test(samAccountName)) {
+    return { ok: false, reason: 'INVALID_ID' };
+  }
   const { client, baseDN } = await getServiceClient();
   try {
-    const safe = escapeLdapFilterValue(String(samAccountName ?? '').trim());
-    if (!safe) return { ok: false, reason: 'INVALID_ID' };
-
+    const safe = escapeLdapFilterValue(samAccountName);
     const filter = `(&(objectCategory=person)(objectClass=user)(!(objectClass=computer))(sAMAccountName=${safe}))`;
-    const { searchEntries } = await client.search(baseDN, {
-      scope: 'sub',
-      filter,
-      sizeLimit: 2,
-      attributes: ['dn']
-    });
-
-    if (searchEntries.length !== 1) return { ok: false, reason: 'NOT_FOUND' };
-
-    const dn = searchEntries[0].dn;
-
+    let searchEntries;
     try {
-      await client.modify(dn, {
-        operation: 'replace',
-        modification: { lockoutTime: '0' }
-      });
+      ({ searchEntries } = await client.search(baseDN, {
+        scope: 'sub', filter, sizeLimit: 2, attributes: ['dn']
+      }));
     } catch (err) {
+      throw toLdapStageError('SEARCH', err);
+    }
+    if (!searchEntries.length) return { ok: false, reason: 'NOT_FOUND' };
+    if (searchEntries.length !== 1) return { ok: false, reason: 'AMBIGUOUS_ID' };
+    // Never construct a DN from request input; use only the unique directory result.
+    const dn = searchEntries[0].dn;
+    if (typeof dn !== 'string' || !dn) throw Object.assign(new Error('Invalid directory result'), { code: 'LDAP_SEARCH_FAILED' });
+    try {
+      await client.modify(dn, new Change({
+        operation: 'replace',
+        modification: new Attribute({ type: 'lockoutTime', values: ['0'] })
+      }));
+    } catch (err) {
+      if (Number(err?.code) === 50) throw Object.assign(new Error('AD delegation denied'), { code: 'LDAP_INSUFFICIENT_ACCESS' });
       throw toLdapStageError('MODIFY', err);
     }
-
-    return { ok: true };
+    // A successful write alone is not proof of unlock; read from this same DC.
+    let verified;
+    try {
+      ({ searchEntries: verified } = await client.search(dn, {
+        scope: 'base', filter: '(objectClass=user)', sizeLimit: 1,
+        attributes: ['dn', 'sAMAccountName', 'lockoutTime', 'userAccountControl']
+      }));
+    } catch {
+      throw Object.assign(new Error('Unlock outcome unverified'), { code: 'LDAP_UNLOCK_UNVERIFIED' });
+    }
+    if (verified.length !== 1 || String(verified[0].lockoutTime) !== '0' || isDisabledFromUac(verified[0].userAccountControl) === null) {
+      throw Object.assign(new Error('Unlock outcome unverified'), { code: 'LDAP_UNLOCK_UNVERIFIED' });
+    }
+    return { ok: true, user: { id: samAccountName, status: isDisabledFromUac(verified[0].userAccountControl) ? 'DISABLED' : 'ACTIVE' } };
   } finally {
     await client.unbind().catch(() => undefined);
   }

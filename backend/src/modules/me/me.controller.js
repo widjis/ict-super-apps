@@ -7,7 +7,7 @@ export async function getMeController(req, res) {
     if (!bundle) return res.status(404).json({ ok: false, error: 'USER_NOT_FOUND' });
     return res.json({ ok: true, ...bundle });
   } catch {
-    return res.status(401).json({ ok: false, error: 'INVALID_TOKEN' });
+    return res.status(503).json({ ok: false, error: 'ME_UNAVAILABLE' });
   }
 }
 

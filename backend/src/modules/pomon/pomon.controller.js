@@ -47,7 +47,7 @@ async function forwardPomonStream(req, res, { method, path }) {
   }
 }
 
-async function signDocToken({ fileId, action }) {
+async function signDocToken({ fileId, action, auth }) {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     const err = new Error('Missing JWT_SECRET');
@@ -55,7 +55,7 @@ async function signDocToken({ fileId, action }) {
     throw err;
   }
 
-  const token = await new SignJWT({ doc: true, fileId: String(fileId), action })
+  const token = await new SignJWT({ doc: true, fileId: String(fileId), action, ...(auth?.sid ? { sid: auth.sid, sub: auth.sub } : {}) })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
     .setExpirationTime('5m')
@@ -179,7 +179,7 @@ export async function pomonPrfDocumentsViewLinkController(req, res) {
   if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
 
   try {
-    const token = await signDocToken({ fileId, action: 'view' });
+    const token = await signDocToken({ fileId, action: 'view', auth: req.auth });
     const origin = getRequestOrigin(req);
     return res.json({
       ok: true,
@@ -196,7 +196,7 @@ export async function pomonPrfDocumentsDownloadLinkController(req, res) {
   if (!fileId) return res.status(400).json({ ok: false, error: 'INVALID_ID' });
 
   try {
-    const token = await signDocToken({ fileId, action: 'download' });
+    const token = await signDocToken({ fileId, action: 'download', auth: req.auth });
     const origin = getRequestOrigin(req);
     return res.json({
       ok: true,

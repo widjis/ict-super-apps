@@ -1,4 +1,4 @@
-import { getAuthToken } from '../auth/storage';
+import { sessionClient } from '../auth/session';
 import { getApiBaseUrl } from './api';
 
 function buildUrl(path: string, query?: Record<string, unknown>) {
@@ -15,11 +15,9 @@ function buildUrl(path: string, query?: Record<string, unknown>) {
 }
 
 export async function authedFetch(path: string, init?: RequestInit & { query?: Record<string, unknown> }) {
-  const token = await getAuthToken();
   const query = (init as any)?.query as Record<string, unknown> | undefined;
   const headers: Record<string, string> = {};
 
-  if (token) headers.Authorization = `Bearer ${token}`;
   if (init?.headers) {
     const h = init.headers as any;
     if (typeof h.forEach === 'function') {
@@ -32,7 +30,7 @@ export async function authedFetch(path: string, init?: RequestInit & { query?: R
   }
 
   const { query: _q, ...rest } = (init ?? {}) as any;
-  const resp = await fetch(buildUrl(path, query), { ...rest, headers });
+  const resp = await sessionClient.request(buildUrl(path, query), { ...rest, headers });
   if (!resp.ok) {
     const err = new Error('HTTP_ERROR');
     (err as any).status = resp.status;
