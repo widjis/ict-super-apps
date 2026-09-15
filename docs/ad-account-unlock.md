@@ -5,9 +5,10 @@
 ## Authorization and configuration
 
 - Existing access-token/session verification runs first; document tokens are rejected.
-- Configure backend `LDAP_UNLOCK_ADMIN_GROUPS` as a semicolon-separated list of full AD group DNs. It is **deny-all when unset/empty**. This is separate from `LDAP_ALLOWED_GROUPS` (login eligibility).
-- Every request looks up the authenticated actor in AD and requires ACTIVE status plus **direct** membership in one configured unlock-admin group. Nested/primary-group membership is not expanded; token `role` claims and cached memberships do not grant access. AD authorization lookup failures fail closed.
-- Uses the existing `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE` (fallback `LDAP_BASE_DN`) and `LDAP_TLS_REJECT_UNAUTHORIZED` settings. Never put secrets in git. Docker Compose already loads `backend/.env`; an operator must supply the new group setting there or via managed environment configuration and restart the backend when deploying. No environment file is changed by this implementation.
+- Reuses backend `LDAP_ALLOWED_GROUPS` and the existing login-policy parser: one full AD group DN, or multiple full DNs separated by semicolons; surrounding whitespace and empty entries are ignored. Commas within a DN are not separators, and membership matching is case-insensitive. Unlock is **deny-all when unset/empty**, even though login treats an empty list as unrestricted by group.
+- The user expressly approved reusing `CN=VPN-IT,CN=Users,DC=mbma,DC=com`: its eligible direct members can both log in and unlock accounts. Any other groups added to `LDAP_ALLOWED_GROUPS` also grant unlock permission; this is deliberately a shared policy, not a separate unlock role.
+- Every request looks up the authenticated actor in AD and requires ACTIVE status plus **direct** membership in one configured allowed group. Nested/primary-group membership is not expanded; token `role` claims and cached memberships do not grant access. AD authorization lookup failures fail closed.
+- Uses the existing `LDAP_URL`, `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD`, `LDAP_SEARCH_BASE` (fallback `LDAP_BASE_DN`) and `LDAP_TLS_REJECT_UNAUTHORIZED` settings. Never put secrets in git. Docker Compose already loads `backend/.env`; no new environment variable is required. Deploy the updated backend and restart/recreate it to activate this code change; an APK update alone cannot change server authorization. No environment file is changed by this implementation.
 - Use LDAPS with trusted certificates and `LDAP_TLS_REJECT_UNAUTHORIZED=true` in production. Keep the search base and permissions scoped to the intended users/OU.
 
 ## Required AD delegation

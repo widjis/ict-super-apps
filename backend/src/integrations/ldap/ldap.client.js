@@ -53,7 +53,7 @@ function normalizeStringArray(value) {
   return [];
 }
 
-function parseAllowedGroupDns() {
+export function parseAllowedGroupDns() {
   const raw = process.env.LDAP_ALLOWED_GROUPS;
   if (!raw) return [];
   if (raw.includes(';')) {

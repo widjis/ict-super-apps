@@ -8,7 +8,7 @@ import { signAccessToken } from '../src/core/auth/jwt.js';
 for (const scenario of ['success', 'non-admin', 'disabled-admin', 'authorization-error', 'permission-error', 'search-error', 'unverified', 'missing-token', 'doc-token']) {
   test(`HTTP ${scenario}: authorization, response and audit`, async (t) => {
     process.env.JWT_SECRET = 'isolated-test-signing-key-only';
-    Object.assign(process.env, { LDAP_UNLOCK_ADMIN_GROUPS: 'CN=Unlock Operators,DC=example,DC=test', LDAP_URL: 'ldaps://invalid.test', LDAP_BIND_DN: 'CN=fixture', LDAP_BIND_PASSWORD: 'fixture-only', LDAP_SEARCH_BASE: 'DC=example,DC=test' });
+    Object.assign(process.env, { LDAP_ALLOWED_GROUPS: 'CN=Unlock Operators,DC=example,DC=test', LDAP_URL: 'ldaps://invalid.test', LDAP_BIND_DN: 'CN=fixture', LDAP_BIND_PASSWORD: 'fixture-only', LDAP_SEARCH_BASE: 'DC=example,DC=test' });
     let searches = 0; let modifies = 0;
     t.mock.method(Client.prototype, 'bind', async () => {});
     t.mock.method(Client.prototype, 'unbind', async () => {});
@@ -42,7 +42,7 @@ for (const scenario of ['success', 'non-admin', 'disabled-admin', 'authorization
 
 test('unlock route denies authenticated non-admin before modify and audits denial', async (t) => {
   process.env.JWT_SECRET = 'isolated-test-signing-key-only';
-  delete process.env.LDAP_UNLOCK_ADMIN_GROUPS;
+  delete process.env.LDAP_ALLOWED_GROUPS;
   let modified = false;
   t.mock.method(Client.prototype, 'modify', async () => { modified = true; });
   const logs = [];
