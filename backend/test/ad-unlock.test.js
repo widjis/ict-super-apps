@@ -17,6 +17,59 @@ function mockLdap(t, { entries = [{ dn: 'CN=Test\\, User,DC=example,DC=test' }],
   return calls;
 }
 
+for (const stage of ['bind', 'search', 'verify']) {
+  test(`${stage} failure is sanitized and client is closed`, async (t) => {
+    const calls = mockLdap(t);
+    if (stage === 'bind') t.mock.method(Client.prototype, 'bind', async () => { throw { code: 49, message: 'private' }; });
+    else if (stage === 'search') t.mock.method(Client.prototype, 'search', async () => { throw new Error('private'); });
+    else t.mock.method(Client.prototype, 'search', async () => {
+      if (calls.modify.length) throw new Error('private');
+      return { searchEntries: [{ dn: 'CN=Test,DC=example,DC=test' }] };
+    });
+    await assert.rejects(unlockActiveDirectoryUser({ samAccountName: 'test' }), { code: stage === 'bind' ? 'LDAP_SERVICE_BIND_FAILED' : stage === 'search' ? 'LDAP_SEARCH_FAILED' : 'LDAP_UNLOCK_UNVERIFIED' });
+    assert.equal(calls.unbind, 1);
+    assert.equal(calls.modify.length, stage === 'verify' ? 1 : 0);
+  });
+}
+
+test('rejects invalid identifiers without binding', async (t) => {
+  const calls = mockLdap(t);
+  for (const samAccountName of ['', ' test', 'test ', 'a\0b', null, 42, 'a'.repeat(257)]) {
+    assert.deepEqual(await unlockActiveDirectoryUser({ samAccountName }), { ok: false, reason: 'INVALID_ID' });
+  }
+  assert.equal(calls.bind.length, 0);
+});
+
+test('escapes filter metacharacters without constructing the target DN', async (t) => {
+  const calls = mockLdap(t);
+  await unlockActiveDirectoryUser({ samAccountName: 'a*)(x=\\' });
+  assert.ok(calls.search[0][1].filter.includes('sAMAccountName=a\\2a\\29\\28x=\\5c'));
+});
+
+for (const [name, options, expected] of [
+  ['missing user', { entries: [] }, 'NOT_FOUND'],
+  ['ambiguous user', { entries: [{ dn: 'a' }, { dn: 'b' }] }, 'AMBIGUOUS_ID'],
+  ['permission denied', { modifyError: { code: 50, message: 'private AD diagnostic' } }, 'LDAP_INSUFFICIENT_ACCESS'],
+  ['modify error', { modifyError: { code: 53 } }, 'LDAP_MODIFY_FAILED'],
+  ['readback still locked', { verify: [{ lockoutTime: '99', userAccountControl: '512' }] }, 'LDAP_UNLOCK_UNVERIFIED'],
+  ['readback missing', { verify: [] }, 'LDAP_UNLOCK_UNVERIFIED']
+]) {
+  test(name, async (t) => {
+    const calls = mockLdap(t, options);
+    if (expected.startsWith('LDAP_')) await assert.rejects(unlockActiveDirectoryUser({ samAccountName: 'test' }), { code: expected });
+    else {
+      assert.deepEqual(await unlockActiveDirectoryUser({ samAccountName: 'test' }), { ok: false, reason: expected });
+      assert.equal(calls.modify.length, 0);
+    }
+    assert.equal(calls.unbind, 1);
+  });
+}
+
+test('disabled account remains disabled after clearing lockout', async (t) => {
+  mockLdap(t, { verify: [{ lockoutTime: '0', userAccountControl: '514' }] });
+  assert.equal((await unlockActiveDirectoryUser({ samAccountName: 'test' })).user.status, 'DISABLED');
+});
+
 test('unlock replaces only lockoutTime using LDAP Change and verifies exact directory DN', async (t) => {
   const calls = mockLdap(t);
   const result = await unlockActiveDirectoryUser({ samAccountName: 'test.user' });

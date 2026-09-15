@@ -36,13 +36,17 @@ export async function unlockAdUserController(req, res) {
   try {
     const result = await unlockActiveDirectoryUser({ samAccountName });
     if (!result.ok) {
-      if (result.reason === 'INVALID_ID') return res.status(400).json({ ok: false, error: 'INVALID_ID' });
-      return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      const status = result.reason === 'INVALID_ID' ? 400 : result.reason === 'AMBIGUOUS_ID' ? 409 : 404;
+      res.locals.unlockOutcome = result.reason;
+      return res.status(status).json({ ok: false, error: result.reason });
     }
-    return res.json({ ok: true });
+    res.locals.unlockOutcome = 'SUCCESS';
+    return res.json({ ok: true, user: result.user });
   } catch (err) {
-    const code = typeof err?.code === 'string' ? err.code : 'AD_UNLOCK_FAILED';
-    const status = code === 'LDAP_CONFIG_MISSING' ? 500 : code.startsWith('LDAP_') ? 502 : 500;
+    const safeCodes = ['LDAP_CONFIG_MISSING', 'LDAP_SERVICE_BIND_FAILED', 'LDAP_TLS_FAILED', 'LDAP_CONNECT_FAILED', 'LDAP_SEARCH_FAILED', 'LDAP_MODIFY_FAILED', 'LDAP_INSUFFICIENT_ACCESS', 'LDAP_UNLOCK_UNVERIFIED'];
+    const code = safeCodes.includes(err?.code) ? err.code : 'AD_UNLOCK_FAILED';
+    res.locals.unlockOutcome = code;
+    const status = code === 'LDAP_CONFIG_MISSING' || code === 'AD_UNLOCK_FAILED' ? 500 : 502;
     return res.status(status).json({ ok: false, error: code });
   }
 }

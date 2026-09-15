@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Info, Search, Unlock, UserPlus } from 'lucide-react';
 import { authedGetJson, authedPostJson } from '../lib/http';
 import EmployeePhoto from '../components/EmployeePhoto';
+import { createAccountUnlocker, type UnlockState } from '../lib/ad-unlock';
 
 interface UserManagementScreenProps {
   onOpenUser?: (samAccountName: string) => void;
@@ -24,6 +25,11 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<DirectoryUser[]>([]);
+  const [unlockStates, setUnlockStates] = useState<Record<string, UnlockState>>({});
+  const onUnlock = useMemo(() => createAccountUnlocker(authedPostJson,
+    (id, state) => setUnlockStates(previous => ({ ...previous, [id]: state })),
+    (user) => setUsers(previous => previous.map(row => row.id === user.id ? { ...row, status: user.status } : row))
+  ), []);
 
   const statusPill = useMemo(() => {
     return activeOnly ? 'Active Only' : 'All Users';
@@ -57,21 +63,6 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
       clearTimeout(t);
     };
   }, [query, activeOnly]);
-
-  const onUnlock = async (samAccountName: string) => {
-    setError(null);
-    setLoading(true);
-    try {
-      await authedPostJson(`/api/ad/users/${encodeURIComponent(samAccountName)}/unlock`);
-      const data = await authedGetJson('/api/ad/users', { query, activeOnly: activeOnly ? 'true' : '' });
-      const list = Array.isArray(data?.users) ? data.users : [];
-      setUsers(list);
-    } catch {
-      setError('Failed to unlock account.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="max-w-2xl mx-auto px-6 pt-6 pb-32">
@@ -196,13 +187,10 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!isLocked) {
-                      setError('Account is not locked.');
-                      return;
-                    }
                     void onUnlock(u.id);
                   }}
-                  disabled={loading || isDisabled}
+                  disabled={unlockStates[u.id]?.busy || !isLocked}
+                  aria-busy={unlockStates[u.id]?.busy ?? false}
                   className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 ${
                     isLocked
                       ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
@@ -210,9 +198,11 @@ export default function UserManagementScreen({ onOpenUser }: UserManagementScree
                   } ${isDisabled ? 'opacity-60' : ''}`}
                 >
                   <Unlock className="w-4 h-4" />
-                  Unlock Account
+                  {unlockStates[u.id]?.busy ? 'Unlocking...' : 'Unlock Account'}
                 </button>
               </div>
+              {unlockStates[u.id]?.error && <p role="alert" className="mt-3 text-sm text-red-600">{unlockStates[u.id].error}</p>}
+              {unlockStates[u.id]?.success && <p role="status" className="mt-3 text-sm text-emerald-700">{unlockStates[u.id].success}</p>}
             </div>
           );
         })}
