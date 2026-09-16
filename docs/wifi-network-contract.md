@@ -1,6 +1,6 @@
 # Kontrak kerja WiFi & Network — ICT Super Apps
 
-Status: Phase 1 diimplementasikan dan diverifikasi lokal; rollout produksi dan uji APK pada perangkat Android masih blocked. Phase 2–5 belum diimplementasikan. Lihat evidence Phase 1 di `docs/wifi-phase1-evidence.md`.
+Status: Phase 1 diimplementasikan, diverifikasi lokal dan backend produksi sudah dideploy dengan pengecualian akun personal yang disetujui. Login pengguna end-to-end dan uji APK pada perangkat Android masih belum terverifikasi. Phase 2–5 belum diimplementasikan. Lihat evidence Phase 1 di `docs/wifi-phase1-evidence.md`.
 
 ## Dasar persetujuan
 
@@ -19,7 +19,7 @@ Pengguna menyetujui rekomendasi alat operasional ICT terlebih dahulu: Check Stat
 
 Android/React -> HTTPS backend ICT dengan autentikasi existing -> adapter RouterOS terenkripsi dan tervalidasi identitasnya. PostgreSQL menyimpan workflow, kepemilikan terverifikasi, masa registrasi dan audit.
 
-- Tidak ada secret router dalam APK, frontend, Git, log, respons API, atau dokumen. Akun pribadi yang dipakai diagnosis bukan akun layanan produksi. Akun layanan hak minimum dan penempatan secret produksi adalah prasyarat rollout; jangan otomatis menyalin env Hermes ke server.
+- Tidak ada secret router dalam APK, frontend, Git, log, respons API, atau dokumen. Default rollout menggunakan akun layanan hak minimum. **Pengecualian Phase 1 disetujui eksplisit pengguna: “saya ijinkan kamu menggunakan akun pribadi saya”.** Persetujuan ini mengizinkan akun MikroTik personal existing untuk backend lookup read-only dan rollout ini, bukan pembuatan akun, perubahan privilege, atau mutasi router/AD. Hanya pasangan secret yang diperlukan ditransfer melalui SSH tervalidasi ke runtime `backend/.env` mode 0600; tidak menyalin seluruh env Hermes. Risiko akun personal (hak aktual tidak dipersempit, rotasi/lifecycle terkait pemilik) tetap terbuka; akun layanan least-privilege tetap rekomendasi tindak lanjut.
 - Reuse konfigurasi/auth/database existing. Settings tambahan hanya jika kebutuhan jelas; jangan mengganti CORS/LDAP policy untuk memudahkan pengujian.
 - RBAC di backend; sembunyinya tombol bukan otorisasi. Phase awal ICT-only; capability read/register/update/revoke harus ditetapkan dari model izin existing, bukan ditebak dari nama group.
 - Adapter memakai operasi terstruktur/allowlist, bukan interpolasi input menjadi perintah shell. Validasi MAC dan identifier; timeout, batas concurrency, cache pendek dan rate limit. Tidak menjalankan script lama atau dump seluruh konfigurasi sensitif.
@@ -140,7 +140,7 @@ Acceptance:
 
 ## Keputusan terbuka sebelum fase terkait
 
-- Phase 1: gate ICT memakai policy existing `LDAP_ALLOWED_GROUPS`, direct membership aktif di-refresh per request dan empty policy deny-all; transport SSH dengan fingerprint SHA256 wajib. Akun layanan read-only dan konfigurasi produksi tetap prasyarat rollout yang belum ditutup.
+- Phase 1: gate ICT memakai policy existing `LDAP_ALLOWED_GROUPS`, direct membership aktif di-refresh per request dan empty policy deny-all; transport SSH dengan fingerprint SHA256 wajib. Rollout backend dan penempatan secret telah dilaksanakan berdasarkan pengecualian akun personal eksplisit; akun layanan least-privilege menjadi tindak lanjut. LDAPS existing memakai certificate verification nonaktif, dipertahankan tanpa mengubah shared policy dan dicatat sebagai risiko belum diperbaiki.
 - Phase 2B: hak melihat QR per SSID, jenis autentikasi/hidden flag, sumber secret backend, dan mapping SSID ke VLAN/AP; pasangan password dari pengguna tidak boleh masuk Git.
 - Phase 3: allowlist kategori per role, kategori tambahan yang boleh diregistrasi, struktur komentar, perangkat uji yang disetujui.
 - Phase 4: ownership verification, approval dan batas perangkat; layanan bisa diakses lewat mobile data atau wajib internal/VPN sesuai deployment existing.
@@ -150,5 +150,5 @@ Acceptance:
 ## Evidence ledger
 
 - Phase 0: dokumen kontrak dibuat berdasarkan persetujuan pengguna dan hasil inspeksi source/router. Tidak ada tes runtime atau perubahan router dalam fase dokumentasi ini. Referensi snapshot diagnosis lokal (tidak di-Git): /tmp/mikrotik-mapping-readonly.json; snapshot bisa hilang dan bukan sumber runtime aplikasi.
-- Phase 1: implementasi lokal, TDD/unit/HTTP/UI, read-only live adapter dan browser→HTTP→router (directory fixture terisolasi), lint, web build dan APK debug telah diuji. Bukti, checksum, batas pengujian dan acceptance blocked tercatat di `docs/wifi-phase1-evidence.md`. Tidak ada deploy atau mutasi router.
+- Phase 1: implementasi lokal, TDD/unit/HTTP/UI, read-only live adapter dan browser→HTTP→router (directory fixture terisolasi), lint, web build dan APK debug telah diuji. Bukti, checksum, batas pengujian dan acceptance blocked tercatat di `docs/wifi-phase1-evidence.md`. Backend-only produksi telah dideploy pada commit `119b34427a25b911eb6bcc46b0a58c67d448386e` dengan backup dan readback; tidak ada mutasi router/AD. Login pengguna HTTP end-to-end dan perangkat Android nyata belum diverifikasi.
 - Phase 2–5 termasuk Phase 2B QR support-only: belum dimulai; seluruh acceptance fase tersebut masih terbuka.
