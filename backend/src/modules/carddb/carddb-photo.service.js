@@ -59,7 +59,7 @@ function buildDelStateFilterSql(mapping) {
   )`;
 }
 
-export async function connectCardDb() {
+export async function connectCardDb({ onError } = {}) {
   const server = getRequiredEnv('SRC_DB_SERVER');
   const database = getRequiredEnv('SRC_DB_DATABASE');
   const user = getRequiredEnv('SRC_DB_USER');
@@ -68,7 +68,7 @@ export async function connectCardDb() {
   const encrypt = getBooleanEnv('SRC_DB_ENCRYPT', true);
   const trustServerCertificate = getBooleanEnv('SRC_DB_TRUST_SERVER_CERTIFICATE', false);
 
-  const pool = await mssql.connect({
+  const config = {
     server,
     database,
     user,
@@ -85,9 +85,14 @@ export async function connectCardDb() {
     },
     connectionTimeout: 15_000,
     requestTimeout: 30_000
-  });
+  };
 
-  return pool;
+  if (!onError) return mssql.connect(config);
+  // Worker owns its pool; attach before connect so driver events cannot crash it.
+  const pool = new mssql.ConnectionPool(config);
+  pool.on('error', onError);
+  try { await pool.connect(); return pool; }
+  catch (error) { await pool.close().catch(() => undefined); throw error; }
 }
 
 export async function fetchCardDbEmployeePhoto(cardPool, employeeId) {

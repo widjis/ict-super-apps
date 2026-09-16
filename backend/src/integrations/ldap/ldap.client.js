@@ -342,9 +342,15 @@ export async function searchActiveDirectoryUsers({ query, activeOnly, limit }) {
   }
 }
 
-export async function listActiveDirectoryUsersPaginated({ activeOnly, pageSize, limit } = {}) {
+export async function listActiveDirectoryUsersPaginated({ activeOnly, pageSize, limit, signal } = {}) {
+  signal?.throwIfAborted();
   const { client, baseDN } = await getServiceClient();
+  // Reuse the configured service client and its existing ten-second timeouts.
+  let closing;
+  const cancel = () => { closing ??= client.unbind().catch(() => undefined); };
+  signal?.addEventListener('abort', cancel, { once: true });
   try {
+    signal?.throwIfAborted();
     const filter = buildUserSearchFilter('', Boolean(activeOnly));
     const resolvedPageSize = typeof pageSize === 'number' && pageSize > 0 ? Math.min(pageSize, 2000) : 1000;
     const resolvedLimit = typeof limit === 'number' && limit > 0 ? limit : null;
@@ -369,6 +375,7 @@ export async function listActiveDirectoryUsersPaginated({ activeOnly, pageSize, 
         'lockoutTime'
       ]
     })) {
+      signal?.throwIfAborted();
       for (const entry of page.searchEntries) {
         const u = mapAdEntryToUserDetails(entry);
         if (!u.id) continue;
@@ -377,11 +384,14 @@ export async function listActiveDirectoryUsersPaginated({ activeOnly, pageSize, 
       }
     }
 
+    signal?.throwIfAborted();
     return { ok: true, users };
   } catch (err) {
+    signal?.throwIfAborted();
     throw toLdapStageError('SEARCH', err);
   } finally {
-    await client.unbind().catch(() => undefined);
+    signal?.removeEventListener('abort', cancel);
+    await (closing ?? client.unbind().catch(() => undefined));
   }
 }
 

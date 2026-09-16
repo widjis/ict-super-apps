@@ -14,6 +14,7 @@ services:
       - /app/node_modules
 
   backend_prod:
+    image: ict-super-apps-backend_prod:latest
     build:
       context: ./backend
       target: prod
@@ -22,3 +23,19 @@ services:
     network_mode: host
     environment:
       PORT: "5059"
+
+  photo_sync_worker:
+    image: ict-super-apps-backend_prod:latest
+    env_file:
+      - ./backend/.env
+    network_mode: host
+    command: ["node", "src/modules/carddb/cli/photo-sync-worker.js"]
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=JSON.parse(require('fs').readFileSync('/tmp/photo-sync-health.json'));process.exit(Date.now()-s.at<90000 && Date.now()-s.lastCycle<4200000 && !['source_error','worker_error','backoff'].includes(s.state)?0:1)"]
+      interval: 60s
+      timeout: 5s
+      retries: 2
+      start_period: 60s
