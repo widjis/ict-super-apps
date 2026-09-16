@@ -1,0 +1,121 @@
+# Kontrak kerja WiFi & Network — ICT Super Apps
+
+Status: arah dan scope disetujui pengguna; Phase 0 dokumentasi. Implementasi belum dimulai.
+
+## Dasar persetujuan
+
+Pengguna menyetujui rekomendasi alat operasional ICT terlebih dahulu: Check Status nyata, daftar pool/perangkat nyata, kemudian registrasi terkontrol dengan audit. Kepemilikan/self-service dan expiry worker menyusul. Dokumen ini menjadi sumber scope dan acceptance implementasi WiFi; perubahan scope harus dicatat dan disetujui sebelum dilaksanakan.
+
+## Baseline dan batas bukti
+
+- Empat layar existing masih mock: WifiNetworkScreen, RegisterDeviceScreen, CheckDeviceStatusScreen, LeaseExpirationReportScreen. Navigasi/state visual tidak berarti integrasi telah tersedia.
+- Pemeriksaan read-only router 10.60.0.3 (DHCP-CCR-PYRITE, CCR2116-12G-4S+, RouterOS 7.12.1) menunjukkan DHCP terpusat via relay pada TO_CS9300_PO_E3/E4; management loopback 10.60.0.3/32; transit 172.60.0.6/30; default route OSPF ke 172.60.0.5.
+- Tidak ada interface VLAN atau bridge VLAN pada router tersebut. Nomor VLAN berasal dari nama konfigurasi, bukan bukti konfigurasi switch/AP. Kebijakan Full/Limited, isolasi, bandwidth, dan VLAN end-to-end belum diverifikasi.
+- Snapshot menunjukkan 3667 static leases dan 0 dynamic; ini bukan jumlah perangkat online. Angka snapshot tidak boleh menjadi konstanta UI.
+- Seluruh rule filter yang diperiksa disabled, simple queue 0; ini tidak membuktikan tidak ada kebijakan pada perangkat jaringan lain.
+- Implementasi bot lama di whatsapp_api_n8nv2/reference/index_old.js memiliki bug expiry: metadata Redis kedaluwarsa sebelum cleanup membutuhkannya. Jangan menyalin mekanisme itu.
+
+## Arsitektur dan aturan wajib
+
+Android/React -> HTTPS backend ICT dengan autentikasi existing -> adapter RouterOS terenkripsi dan tervalidasi identitasnya. PostgreSQL menyimpan workflow, kepemilikan terverifikasi, masa registrasi dan audit.
+
+- Tidak ada secret router dalam APK, frontend, Git, log, respons API, atau dokumen. Akun pribadi yang dipakai diagnosis bukan akun layanan produksi. Akun layanan hak minimum dan penempatan secret produksi adalah prasyarat rollout; jangan otomatis menyalin env Hermes ke server.
+- Reuse konfigurasi/auth/database existing. Settings tambahan hanya jika kebutuhan jelas; jangan mengganti CORS/LDAP policy untuk memudahkan pengujian.
+- RBAC di backend; sembunyinya tombol bukan otorisasi. Phase awal ICT-only; capability read/register/update/revoke harus ditetapkan dari model izin existing, bukan ditebak dari nama group.
+- Adapter memakai operasi terstruktur/allowlist, bukan interpolasi input menjadi perintah shell. Validasi MAC dan identifier; timeout, batas concurrency, cache pendek dan rate limit. Tidak menjalankan script lama atau dump seluruh konfigurasi sensitif.
+- Aplikasi gagal dengan jelas jika sumber tidak tersedia: unavailable/stale beserta waktu observasi; bukan not registered, bukan sukses palsu.
+- Registered, DHCP bound, reachability, dan akses internet adalah status berbeda. Jangan memakai uptime router sebagai uptime perangkat.
+- Full/Limited adalah kategori pool sampai kebijakan akses terverifikasi. Registrasi DHCP tidak memindahkan VLAN/SSID dan pencabutan lease tidak menjamin disconnect instan.
+- Android: jangan menjanjikan auto-read MAC. Sediakan input/paste dan panduan randomized MAC per SSID; scan hanya jika format label memuat MAC yang tervalidasi.
+- Semua perubahan existing lease perlu review/konfirmasi, verifikasi target ulang, audit, dan hasil readback. Jangan mengklaim transaksi atomik lintas PostgreSQL/RouterOS.
+- Tidak ada bulk delete, ubah VLAN/trunk, firewall, NAT, DNS, atau jaringan core dalam kontrak ini.
+
+## Katalog mapping awal (harus divalidasi saat implementasi)
+
+| Kategori | Pool RouterOS | DHCP server | Network / relay |
+|---|---|---|---|
+| Employee full | EMPLOYEE - FULL_VLAN_63 | DHCP_EMPLOYEE_VLAN63 | 10.60.20.0/22 / 10.60.20.1 |
+| Employee limited | EMPLOYEE - LIMITED_VLAN_63 | DHCP_EMPLOYEE_VLAN63 | 10.60.20.0/22 / 10.60.20.1 |
+| Visitor management | VISITOR-MANAGEMENT_VLAN_64 | DHCP_VISITOR_VLAN64 | 10.60.24.0/21 / 10.60.24.1 |
+| Visitor staff | VISITOR-STAFF_VLAN_64 | DHCP_VISITOR_VLAN64 | 10.60.24.0/21 / 10.60.24.1 |
+| Visitor nonstaff | VISITOR-NON_STAFF_VLAN_64_28 | DHCP_VISITOR_VLAN64 | 10.60.24.0/21 / 10.60.24.1 |
+| Contractor regular | CONTRACTOR_VLAN_67 | DHCP_CONTRACTOR_VLAN67 | 10.60.34.0/24 / 10.60.34.1 |
+
+Pool tambahan TV, printer, contractor VIP/CKB harus terlihat pada inventaris jika berizin tetapi tidak otomatis menjadi pilihan provisioning. Pool nonstaff berantai ke _29, _30, _31. Keempat DHCP aktif (termasuk printer) static-only. DHCP_NETWORK disabled. Jangan mengubah kondisi ini.
+
+## Phase 0 — Kontrak dan checkpoint
+
+Output: kontrak ini serta ledger evidence per fase. Tidak ada perubahan runtime.
+Acceptance: scope, batas keamanan, dependensi, fase, dan keputusan terbuka tercatat; dokumen diverifikasi dan dipublikasikan melalui Git normal.
+
+## Phase 1 — Check Status nyata (read-only)
+
+Output: kontrak API lookup MAC, adapter RouterOS, otorisasi ICT, layar cek nyata; hapus hasil sukses hardcoded dan istilah AD/hardware hash yang salah. Fitur belum terimplementasi ditandai belum tersedia, bukan spinner koneksi permanen.
+
+Acceptance:
+- Unit/integration tests: normalisasi dan invalid MAC, tidak ditemukan, satu/banyak lease, disabled, bound/waiting, address berupa pool vs active-address, sumber timeout/auth/TLS gagal, unauthorized/forbidden, dan rate limit.
+- Lookup tidak memilih lease pertama diam-diam jika MAC muncul di beberapa server; tampilkan hasil yang jelas.
+- API tidak membocorkan secret; data pemilik/komentar mengikuti izin. Tidak menebak employee dari komentar.
+- UI empty/loading/result/error/stale, input/paste dan akses mobile teruji; scan bukan syarat fase ini.
+- Buktikan adapter fase ini hanya read-only; live lookup terbatas dibandingkan dengan router tanpa memublikasikan PII.
+- Tes/lint/build terkait lulus; APK debug diuji aset dan checksum jika fase dirilis. Status login/tidak tersedia tidak boleh dicache sebagai negative lookup.
+
+## Phase 2 — Inventaris perangkat, pool dan peta jaringan (read-only)
+
+Output: daftar berhalaman, pencarian/filter MAC/hostname/komentar/kategori, katalog pool/rentang/relay/gateway, refresh nyata dan waktu observasi. UI mobile memakai daftar/kartu yang terbaca.
+
+Acceptance:
+- Batas query dan cache/snapshot terukur; pagination stabil, tidak menarik seluruh inventaris ke APK untuk setiap pencarian.
+- Bedakan registrasi dengan alokasi aktif. Saturation memakai data pool used yang valid, deduplikasi rentang/next-pool, penanganan cycle dan pool hilang; jika belum tersedia tampilkan unavailable, jangan estimasi dari jumlah static lease.
+- Label VLAN sebagai mapping konfigurasi, bukan hasil discovery switch; no mock metrics.
+- Test sumber mati, hasil parsial, filter, pagination, izin dan pool chaining; sampel live readback cocok.
+
+## Phase 3 — Registrasi ICT terkontrol
+
+Output: form existing tersambung backend, employee directory reuse, jenis perangkat, MAC, kategori yang diizinkan, komentar dan review/confirmation. Awal tanpa expiry aktif jika Phase 5 belum selesai; jangan menerima durasi yang tidak dapat ditegakkan.
+
+Acceptance:
+- Keputusan kewenangan kategori (Full/Management/Contractor dll.) ditutup sebelum implementasi write.
+- Validasi pool-server, MAC, duplicate/concurrent submission, request idempotency, dan target DHCP aktif/static-only.
+- Database operation intent/audit persisten sebelum mutasi; readback router setelah write. Timeout ambigu direkonsiliasi sebelum retry, bukan add ulang buta.
+- Skenario router sukses/DB gagal dan DB sukses/router gagal dapat ditelusuri dan direkonsiliasi; state pending/failed/unknown eksplisit.
+- Tidak overwrite/mengadopsi existing lease tanpa persetujuan. Uji mutasi nyata memakai perangkat/MAC, pool, dan rollback yang ditentukan serta diizinkan pengguna; tidak membuat registrasi uji sembarang.
+
+## Phase 4 — Kepemilikan dan self-service terbatas
+
+Output: Perangkat Saya, employee-device association, riwayat, permintaan registrasi/perubahan dengan persetujuan sesuai policy.
+
+Acceptance: policy maksimum perangkat/kategori/approval disepakati; ownership terverifikasi; tes IDOR/akses lintas pengguna, employee inactive, perubahan pemilik, legacy lease unknown; pengguna tidak dapat memberi dirinya kategori privileged. Legacy import tidak menulis ulang semua lease atau menebak pemilik dari komentar.
+
+## Phase 5 — Masa berlaku, perpanjangan dan worker
+
+Output: expires_at persisten di PostgreSQL, report expiry nyata, renew/approval, worker bounded dengan lock, retry/backoff, graceful shutdown, audit dan observability. Notifikasi memakai mekanisme yang disepakati; tidak mengaktifkan kanal baru otomatis.
+
+Acceptance:
+- Pisahkan masa registrasi dari DHCP lease-time; legacy tanpa bukti diberi unknown, bukan permanent atau expired hasil tebakan.
+- Worker hanya mencabut registrasi terkelola/terverifikasi; cek identitas MAC+server+lease dan revisi sebelum mutasi. Renew-vs-revoke race, job duplikat, restart, router offline, metadata mismatch, waktu/timezone dan expired backlog teruji.
+- Metadata tidak terhapus sebelum aksi dan audit selesai; pending revocation != revoked. Bukan janji pemutusan sesi instan.
+- Tidak boleh ada dua scheduler yang sama-sama mengelola lease yang sama; inventaris dan handover bot lama wajib sebelum aktivasi.
+
+## Gate delivery setiap fase
+
+1. Catat fase aktif, file/API/schema yang disentuh dan keputusan yang sudah ditutup.
+2. Tulis regression tests sebelum implementasi; gunakan fixture terlabel untuk test, bukan hasil produksi fiktif.
+3. Run unit/integration/UI checks, lint/build; review security dan diff, jaga unrelated work.
+4. Update evidence ledger dengan perintah, hasil aktual, batas verifikasi, commit dan artifact.
+5. Commit/push normal, verifikasi remote SHA. APK perubahan Android: build debug dengan toolchain existing, verifikasi packaged assets dan SHA-256; tidak commit artifact.
+6. Produksi adalah gate terpisah: scope deploy/akun layanan/migrasi/backup/rollback harus dikonfirmasi. Approval kontrak bukan izin mutasi router atau rollout otomatis.
+7. Jangan mulai fase berikut sebagai fitur selesai sebelum acceptance fase berjalan terpenuhi. Jika blocked, catat blocker; jangan mark passed.
+
+## Keputusan terbuka sebelum fase terkait
+
+- Phase 1: capability ICT dari model role existing; akun layanan read-only, transport API TLS atau SSH dengan identity verification, konfigurasi produksi yang disetujui.
+- Phase 3: allowlist kategori per role, kategori tambahan yang boleh diregistrasi, struktur komentar, perangkat uji yang disetujui.
+- Phase 4: ownership verification, approval dan batas perangkat; layanan bisa diakses lewat mobile data atau wajib internal/VPN sesuai deployment existing.
+- Phase 5: durasi maksimum/permanen, timezone tampilan, renew policy, kanal notifikasi, kepemilikan scheduler lama dan strategi handover.
+- Firewall/core: terpisah, hanya diperlukan untuk klaim kualitas akses atau pencabutan instan; tidak termasuk implementasi DHCP ini.
+
+## Evidence ledger
+
+- Phase 0: dokumen kontrak dibuat berdasarkan persetujuan pengguna dan hasil inspeksi source/router. Tidak ada tes runtime atau perubahan router dalam fase dokumentasi ini. Referensi snapshot diagnosis lokal (tidak di-Git): /tmp/mikrotik-mapping-readonly.json; snapshot bisa hilang dan bukan sumber runtime aplikasi.
+- Phase 1–5: belum dimulai; seluruh acceptance masih terbuka.
