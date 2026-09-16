@@ -1,4 +1,5 @@
 import express from 'express';
+import { createWifiRouter } from '../../modules/wifi/wifi.routes.js';
 import { corsMiddleware } from '../http/cors.js';
 import { createHealthRouter } from '../../modules/health/health.routes.js';
 import { createAuthRouter } from '../../modules/auth/auth.routes.js';
@@ -18,6 +19,7 @@ export function createApp() {
   app.use(createAuthRouter());
   app.use(createMeRouter());
   app.use(createAdRouter());
+  app.use(createWifiRouter());
   app.use(createPomonRouter());
   app.use(createCheckGoodsRouter());
 

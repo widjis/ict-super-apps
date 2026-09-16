@@ -1,6 +1,6 @@
 # Kontrak kerja WiFi & Network — ICT Super Apps
 
-Status: arah dan scope disetujui pengguna; Phase 0 dokumentasi. Implementasi belum dimulai.
+Status: Phase 1 diimplementasikan dan diverifikasi lokal; rollout produksi dan uji APK pada perangkat Android masih blocked. Phase 2–5 belum diimplementasikan. Lihat evidence Phase 1 di `docs/wifi-phase1-evidence.md`.
 
 ## Dasar persetujuan
 
@@ -70,6 +70,37 @@ Acceptance:
 - Label VLAN sebagai mapping konfigurasi, bukan hasil discovery switch; no mock metrics.
 - Test sumber mati, hasil parsial, filter, pagination, izin dan pool chaining; sampel live readback cocok.
 
+## Phase 2B — Daftar SSID dan QR Wi-Fi (tambahan disetujui pengguna)
+
+Ekspektasi: hanya IT/ICT support yang berhak dapat memilih SSID pada menu WiFi & Network (support-only, bukan self-service pengguna biasa), menampilkan QR Wi-Fi, lalu memindainya dari perangkat yang akan dihubungkan. Ini QR konfigurasi Wi-Fi standar, bukan barcode MAC atau QR registrasi DHCP. Implementasi dilakukan setelah Phase 2; tidak membuka seluruh inventaris ICT untuk pengguna biasa.
+
+Katalog awal, ejaan harus dipertahankan persis:
+- `mti-01` — gunakan pasangan password yang diberikan pengguna untuk SSID ini.
+- `mti-02` — gunakan pasangan password yang diberikan pengguna untuk SSID ini.
+- `mti-03` — gunakan pasangan password yang diberikan pengguna untuk SSID ini.
+
+Password asli sengaja tidak dicantumkan dalam kontrak/repository. Pasangan dari pesan pengguna adalah input konfigurasi rahasia, bukan nilai default source code; simpan melalui mekanisme secret backend yang disetujui saat implementasi. Jangan mengganti karakter, memangkas password, menukar pasangan SSID, atau menyimpulkan pola password. Jenis autentikasi, hidden SSID, dan pemetaan ketiga SSID ke VLAN/AP belum diverifikasi; jangan mengasumsikan mti-01/02/03 sama dengan Employee/Visitor/Contractor.
+
+Output:
+- Daftar SSID berizin dengan tombol Tampilkan QR, nama jaringan yang jelas dan petunjuk scan melalui kamera/pengaturan Wi-Fi perangkat lain.
+- QR dibuat dari SSID, jenis keamanan terverifikasi, password yang sesuai, dan hidden flag yang terverifikasi. SSID ditampilkan dari katalog konfigurasi, bukan diklaim hasil scan radio atau bukti sinyal tersedia.
+- Untuk HP yang sama dengan aplikasi: panduan bergabung/manual tetap tersedia; kemampuan tombol Connect native harus diuji sesuai versi Android dan persetujuan OS. Tidak menjanjikan HP dapat memindai layar sendiri atau tersambung diam-diam.
+- QR berisi kredensial yang dapat dibaca siapa pun yang mendapatkannya. Jangan menyebutnya terenkripsi atau sekali pakai. Ekspor/share/download QR tidak diaktifkan default; kebijakan distribusi dan hak melihat/reveal/copy password ditetapkan sebelum rilis.
+
+Keamanan:
+- Pisahkan secret Wi-Fi yang memang boleh disampaikan kepada pengguna berizin dari kredensial administratif router yang tidak pernah dikirim ke aplikasi.
+- Tidak ada password atau payload QR nyata dalam Git, fixture, APK statis, analytics, access log, crash report, URL/query string, atau persistent client storage. Backend mengotorisasi setiap pengambilan secret; respons no-store, state sensitif dibersihkan saat logout/layar ditutup. Penampilan sementara dalam memori perangkat pengguna berizin diperlukan untuk merender QR.
+- Backend menerapkan hak akses per SSID dengan policy yang disetujui; jangan menganggap semua akun login boleh mengakses semua PSK. Catat audit akses menggunakan user/SSID/waktu saja, tanpa password atau payload QR.
+- Gagal mengambil kredensial tidak boleh menghasilkan QR dummy. Rotasi password tidak memerlukan rebuild APK; cache tidak boleh terus menampilkan kredensial lama setelah refresh/logout.
+- Proteksi capture layar bila diterapkan hanya mitigasi; QR masih bisa difoto perangkat lain. Penghapusan akses aplikasi tidak mencabut PSK yang sudah diketahui pengguna.
+
+Acceptance:
+- Unit tests encoding/decoding QR menggunakan password sintetis dengan karakter khusus termasuk semicolon, colon, backslash, comma dan quote; round-trip SSID/password harus identik, tanpa menormalisasi secret. Verifikasi format QR dengan parser independen.
+- Test pasangan tiga SSID, izin per SSID, unauthorized/forbidden, secret tidak tersedia, rotasi, no-store, logout, dan tidak bocornya secret di log/build artifact.
+- Uji QR pada perangkat Android nyata: terbaca, nama SSID tepat, prompt OS sesuai, dan association berhasil pada SSID tersedia dengan autentikasi yang disepakati. Uji iOS jika dukungan iOS dinyatakan; tidak mengklaimnya lulus dari tes Android.
+- Bedakan hasil association Wi-Fi, alokasi DHCP dan akses internet. Pada DHCP static-only, scan QR tidak otomatis mendaftarkan MAC atau menjamin IP/internet; arahkan ke Check Status/registrasi sesuai kewenangan.
+- Tidak mengubah PSK, konfigurasi SSID/AP/VLAN, DHCP atau router sebagai efek menampilkan QR. Uji koneksi jaringan dilakukan pada perangkat yang disetujui, bukan membuat registrasi router tanpa izin.
+
 ## Phase 3 — Registrasi ICT terkontrol
 
 Output: form existing tersambung backend, employee directory reuse, jenis perangkat, MAC, kategori yang diizinkan, komentar dan review/confirmation. Awal tanpa expiry aktif jika Phase 5 belum selesai; jangan menerima durasi yang tidak dapat ditegakkan.
@@ -109,7 +140,8 @@ Acceptance:
 
 ## Keputusan terbuka sebelum fase terkait
 
-- Phase 1: capability ICT dari model role existing; akun layanan read-only, transport API TLS atau SSH dengan identity verification, konfigurasi produksi yang disetujui.
+- Phase 1: gate ICT memakai policy existing `LDAP_ALLOWED_GROUPS`, direct membership aktif di-refresh per request dan empty policy deny-all; transport SSH dengan fingerprint SHA256 wajib. Akun layanan read-only dan konfigurasi produksi tetap prasyarat rollout yang belum ditutup.
+- Phase 2B: hak melihat QR per SSID, jenis autentikasi/hidden flag, sumber secret backend, dan mapping SSID ke VLAN/AP; pasangan password dari pengguna tidak boleh masuk Git.
 - Phase 3: allowlist kategori per role, kategori tambahan yang boleh diregistrasi, struktur komentar, perangkat uji yang disetujui.
 - Phase 4: ownership verification, approval dan batas perangkat; layanan bisa diakses lewat mobile data atau wajib internal/VPN sesuai deployment existing.
 - Phase 5: durasi maksimum/permanen, timezone tampilan, renew policy, kanal notifikasi, kepemilikan scheduler lama dan strategi handover.
@@ -118,4 +150,5 @@ Acceptance:
 ## Evidence ledger
 
 - Phase 0: dokumen kontrak dibuat berdasarkan persetujuan pengguna dan hasil inspeksi source/router. Tidak ada tes runtime atau perubahan router dalam fase dokumentasi ini. Referensi snapshot diagnosis lokal (tidak di-Git): /tmp/mikrotik-mapping-readonly.json; snapshot bisa hilang dan bukan sumber runtime aplikasi.
-- Phase 1–5: belum dimulai; seluruh acceptance masih terbuka.
+- Phase 1: implementasi lokal, TDD/unit/HTTP/UI, read-only live adapter dan browser→HTTP→router (directory fixture terisolasi), lint, web build dan APK debug telah diuji. Bukti, checksum, batas pengujian dan acceptance blocked tercatat di `docs/wifi-phase1-evidence.md`. Tidak ada deploy atau mutasi router.
+- Phase 2–5 termasuk Phase 2B QR support-only: belum dimulai; seluruh acceptance fase tersebut masih terbuka.

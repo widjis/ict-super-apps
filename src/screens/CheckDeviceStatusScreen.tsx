@@ -1,141 +1,80 @@
-import { Scan, ClipboardPaste, Radar, Info, Wifi, Shield, ArrowRight, ExternalLink, Router, Laptop } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { authedRequestJson } from '../lib/http';
 
-interface CheckDeviceStatusScreenProps {
-  onBack?: () => void;
+type Lease = { mac: string; server: string; configuredAddress: string | null; configuredPool: string | null; activeAddress: string | null; dhcpStatus: string; disabled: boolean; dynamic: boolean };
+type Lookup = { ok: true; mac: string; match: 'none' | 'single' | 'multiple'; leases: Lease[]; observedAt: string; stale: boolean; reachability: 'unknown'; internetAccess: 'unknown' };
+function validResult(data: any, mac: string): data is Lookup {
+  const nullableText = (v: unknown) => v === null || typeof v === 'string';
+  return data?.ok === true && data.mac === mac && typeof data.observedAt === 'string' && Number.isFinite(Date.parse(data.observedAt)) && Date.parse(data.observedAt) <= Date.now() + 5000
+    && typeof data.stale === 'boolean' && data.reachability === 'unknown' && data.internetAccess === 'unknown'
+    && Array.isArray(data.leases) && data.leases.length <= 64 && data.match === (data.leases.length > 1 ? 'multiple' : data.leases.length ? 'single' : 'none')
+    && data.leases.every((l: any) => l && l.mac === mac && typeof l.server === 'string' && typeof l.dhcpStatus === 'string' && typeof l.disabled === 'boolean' && typeof l.dynamic === 'boolean' && nullableText(l.configuredPool) && nullableText(l.configuredAddress) && nullableText(l.activeAddress));
 }
-
-export default function CheckDeviceStatusScreen({ onBack }: CheckDeviceStatusScreenProps) {
-  return (
-    <div className="max-w-5xl mx-auto px-6 pt-6 pb-24">
-      {/* Headline Section */}
-      <div className="mb-10 space-y-2">
-        <h1 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Check Device Status</h1>
-        <p className="text-on-surface-variant font-medium">Verify network authorization and real-time connectivity metrics.</p>
-      </div>
-
-      {/* Asymmetric Bento-style Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Input & Action Column */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-surface-container-lowest rounded-[1.5rem] p-8 shadow-[0_8px_24px_rgba(42,52,57,0.04)]">
-            <label className="block text-label-sm font-semibold text-on-surface-variant uppercase tracking-wider mb-4">Device Identifier</label>
-            <div className="relative group">
-              <input 
-                className="w-full h-14 bg-surface-container-highest border-none rounded-xl px-4 text-on-surface font-body font-medium focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all placeholder:text-outline outline-none" 
-                placeholder="XX:XX:XX:XX:XX:XX" 
-                type="text"
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-2">
-                <button className="p-2 text-primary hover:bg-primary-container/30 rounded-lg transition-colors" title="Scan QR/Barcode">
-                  <Scan className="w-5 h-5" />
-                </button>
-                <button className="p-2 text-primary hover:bg-primary-container/30 rounded-lg transition-colors" title="Paste from Clipboard">
-                  <ClipboardPaste className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <button className="w-full mt-8 bg-gradient-to-br from-primary to-primary-dim text-on-primary h-14 rounded-xl font-headline font-bold text-lg shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-              <Radar className="w-6 h-6" />
-              Check Status
-            </button>
-          </div>
-
-          {/* Empty State Hint */}
-          <div className="bg-surface-container-low rounded-[1.5rem] p-6 flex items-start gap-4">
-            <div className="bg-surface-container-highest p-3 rounded-full shrink-0">
-              <Info className="w-6 h-6 text-on-surface-variant" />
-            </div>
-            <p className="text-on-surface-variant text-sm leading-relaxed">
-              Enter a MAC address to check its current registration status. Our precision engine will query the Slate Nexus core for routing and DHCP history.
-            </p>
-          </div>
-        </div>
-
-        {/* Result Cards Column */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Success State Card */}
-          <div className="bg-surface-container-lowest rounded-[1.5rem] p-8 shadow-[0_8px_24px_rgba(42,52,57,0.06)] border-l-8 border-tertiary">
-            <div className="flex justify-between items-start mb-8">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-tertiary uppercase tracking-widest bg-tertiary-container/30 px-2 py-1 rounded">Live Connection</span>
-                <h3 className="font-headline text-2xl font-bold text-on-surface">user-macbook</h3>
-              </div>
-              <div className="flex flex-col items-end">
-                <div className="flex items-center gap-2 text-tertiary font-bold">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-tertiary"></span>
-                  </span>
-                  Registered
-                </div>
-                <span className="text-label-sm text-on-surface-variant mt-1">Uptime: 14d 2h 12m</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-y-8 gap-x-4">
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">IPv4 Address</p>
-                <p className="font-mono text-lg font-semibold text-primary">192.168.1.50</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">DHCP Server</p>
-                <p className="font-body text-lg font-semibold text-on-surface">Internal</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Assigned To</p>
-                <p className="font-body text-lg font-semibold text-on-surface">Adriana User</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Hardware Hash</p>
-                <p className="font-mono text-sm text-on-surface-variant truncate">F4:D4:88:AC:21:09</p>
-              </div>
-            </div>
-
-            <div className="mt-8 pt-8 border-t border-surface-container-highest flex justify-between items-center">
-              <div className="flex -space-x-2">
-                <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-primary border-2 border-surface-container-lowest">
-                  <Wifi className="w-4 h-4" />
-                </div>
-                <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-secondary border-2 border-surface-container-lowest">
-                  <Shield className="w-4 h-4" />
-                </div>
-              </div>
-              <button className="text-primary font-headline font-bold text-sm flex items-center gap-1 hover:underline">
-                View Deep Metrics
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Secondary Data Card / Visualization */}
-          <div className="bg-surface-container-low rounded-[1.5rem] overflow-hidden group">
-            <div className="p-6 flex justify-between items-center bg-surface-container">
-              <h4 className="font-headline font-bold text-on-surface">Network Topology</h4>
-              <ExternalLink className="w-5 h-5 text-on-surface-variant" />
-            </div>
-            <div className="h-40 bg-surface-container-highest relative flex items-center justify-center">
-              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #0053db 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
-              <div className="flex items-center gap-8 relative z-10">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-2xl bg-surface-container-lowest shadow-sm flex items-center justify-center">
-                    <Router className="w-6 h-6 text-primary" />
-                  </div>
-                  <span className="text-[10px] font-bold text-on-surface-variant uppercase">Core_Switch_01</span>
-                </div>
-                <div className="h-[2px] w-12 bg-tertiary/40 relative">
-                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-tertiary"></div>
-                </div>
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-2xl bg-surface-container-lowest shadow-sm flex items-center justify-center ring-2 ring-primary">
-                    <Laptop className="w-6 h-6 text-primary" />
-                  </div>
-                  <span className="text-[10px] font-bold text-primary uppercase">user-macbook</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+export default function CheckDeviceStatusScreen({ onBack }: { onBack?: () => void }) {
+  const [mac, setMac] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<Lookup | null>(null);
+  const [error, setError] = useState('');
+  const [stale, setStale] = useState(false);
+  const pending = useRef<AbortController | null>(null);
+  useEffect(() => () => { pending.current?.abort(); pending.current = null; }, []);
+  useEffect(() => {
+    if (!result) return;
+    const timer = setTimeout(() => setStale(true), Math.max(0, Date.parse(result.observedAt) + 60000 - Date.now()));
+    return () => clearTimeout(timer);
+  }, [result]);
+  function changeMac(value: string) {
+    pending.current?.abort(); pending.current = null;
+    setBusy(false); setMac(value); setResult(null); setError(''); setStale(false);
+  }
+  async function submit(event: { preventDefault(): void }) {
+    event.preventDefault();
+    if (pending.current) return;
+    const raw = mac.trim();
+    const hex = raw.replace(/[:-]/g, '').toUpperCase();
+    if (!/^(?:[\da-f]{12}|[\da-f]{2}(:[\da-f]{2}){5}|[\da-f]{2}(-[\da-f]{2}){5})$/i.test(raw) || hex === '000000000000' || (parseInt(hex.slice(0, 2), 16) & 1)) {
+      setResult(null); setError('Enter a valid unicast MAC address.'); return;
+    }
+    const normalized = hex.match(/.{2}/g)!.join(':');
+    if (result?.mac !== normalized) setResult(null);
+    const controller = new AbortController(); pending.current = controller;
+    const timer = setTimeout(() => controller.abort(), 30000);
+    setBusy(true); setError('');
+    try {
+      const data = await authedRequestJson('/api/wifi/lookup', { method: 'POST', cache: 'no-store', signal: controller.signal, bodyJson: { mac: normalized } });
+      if (pending.current !== controller) return;
+      if (!validResult(data, normalized)) throw new Error('INVALID_RESPONSE');
+      setResult(data); setStale(data.stale || Date.now() - Date.parse(data.observedAt) > 60000);
+    } catch (failure) {
+      if (pending.current !== controller) return;
+      const status = (failure as { status?: number })?.status;
+      if (status === 401 || status === 403) setResult(null); else setStale(true);
+      setError(status === 401 ? 'Sign in again to check status.' : status === 403 ? 'Only authorized ICT support can check status.' : status === 429 ? 'Too many lookups. Wait one minute and retry.' : 'DHCP source unavailable. Registration was not verified. Retry Check Status.');
+    } finally { clearTimeout(timer); if (pending.current === controller) { pending.current = null; setBusy(false); } }
+  }
+  return <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-24 space-y-6">
+    {onBack && <button onClick={onBack} className="min-h-12 text-primary">Back</button>}
+    <header><h1 className="font-headline text-3xl font-bold">Check Device Status</h1><p className="mt-2">ICT support · read-only DHCP registration lookup.</p></header>
+    <form onSubmit={submit} className="bg-surface-container-lowest rounded-2xl p-5 space-y-4">
+      <label htmlFor="wifi-mac" className="block font-semibold">MAC address</label>
+      <input id="wifi-mac" type="text" value={mac} onInput={e => changeMac(e.currentTarget.value)} autoCapitalize="characters" autoCorrect="off" spellCheck={false} maxLength={64} placeholder="02:AB:CD:EF:00:01" aria-describedby="wifi-help" className="w-full min-h-14 rounded-xl bg-surface-container-highest px-4 font-mono" />
+      <p id="wifi-help" className="text-sm text-on-surface-variant">Enter a MAC address or paste using your keyboard. On Android, open Wi-Fi settings for the selected SSID and use its randomized MAC, not another network's MAC. This app does not auto-read your MAC.</p>
+      <button type="submit" disabled={busy} aria-busy={busy} className="w-full min-h-14 bg-primary text-on-primary rounded-xl font-bold disabled:opacity-50">{busy ? 'Checking...' : 'Check Status'}</button>
+    </form>
+    {error && <p role="alert" className="rounded-xl bg-error-container p-4">{error}</p>}
+    {busy && <p role="status">Checking DHCP source...</p>}
+    {!result && !busy && !error && <p>Enter a MAC address to check registration. No lookup performed yet.</p>}
+    {result && <section aria-label="DHCP lookup result" className="space-y-4 break-words">
+      {stale && <p role="status" className="font-bold">Stale observation — refresh required; not current status.</p>}
+      <h2 className="text-xl font-bold">{result.match === 'none' ? 'No DHCP lease found' : result.match === 'multiple' ? 'Multiple leases — review every server' : 'DHCP lease found'}</h2>
+      <p className="font-mono">{result.mac}</p><p>Observed: {new Date(result.observedAt).toLocaleString()}</p>
+      {result.leases.map((lease, index) => <article key={`${lease.server}-${index}`} className="rounded-2xl bg-surface-container-lowest p-5 space-y-2">
+        <h3 className="font-bold">DHCP server: {lease.server}</h3>
+        <p>{lease.dynamic ? 'Dynamic lease' : 'Registered (static lease)'} · {lease.disabled ? 'Disabled' : 'Enabled'}</p>
+        <p>DHCP status: {lease.dhcpStatus}</p><p>Configured pool: {lease.configuredPool ?? '—'}</p>
+        <p>Configured IP: {lease.configuredAddress ?? '—'}</p><p>Active IP: {lease.activeAddress ?? 'Not allocated / unknown'}</p>
+      </article>)}
+      <p className="text-sm">Registration and DHCP bound do not prove reachability or internet access. Both are unverified. Pool names do not verify VLAN/SSID or Full/Limited access policy. Owner and registration expiry are unknown.</p>
+    </section>}
+  </main>;
 }

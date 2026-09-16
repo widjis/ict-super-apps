@@ -21,7 +21,8 @@
     "node-pg-migrate": "^8.0.0",
     "node-routeros": "^1.6.8",
     "pg": "^8.16.3",
-    "react-example": "file:.."
+    "react-example": "file:..",
+    "ssh2": "^1.17.0"
   },
   "engines": {
     "node": ">=20"
