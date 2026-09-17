@@ -191,3 +191,9 @@ TDD RED→GREEN diamati: decoder belum ada → native 6000×4000 PNG disubsample
 Warnings nonfatal: 16 lint warnings existing ditambah 2 rekomendasi menggunakan AndroidX alih-alih platform `ExifInterface`; platform parser min-API sesuai, input private dibatasi dan rotasi diuji. Toolchain Node/Gradle/Capacitor warnings tetap. Native decoder mencetak diagnostic generik untuk corrupt synthetic fixture, tanpa URI/path pengguna. Tidak mengganti dependency graph secara broad.
 
 **Gate fisik tetap terbuka:** camera/gallery OEM (termasuk pipe/cloud provider), API 24–29 fallback, EXIF/mirrored photo, huge/corrupt images, actual SDK offline recognition, background/process death/cache retention, dan akurasi MAC pada foto pengguna. Parent review serta smoke APK terkoreksi harus selesai sebelum menyatakan OCR fisik terverifikasi.
+
+### Percobaan rollout follow-up — blocked jaringan
+
+Pada `2026-09-17T00:23:43Z`, checkout lokal clean dikonfirmasi pada target `82660b9f0d4170a3e71701adfea633bd19f9f534`. Deploy backend-only belum dapat dimulai: Paramiko ke Docker `10.60.10.59:22` timeout pada TCP connect; native OpenSSH dengan `StrictHostKeyChecking=yes`, `BatchMode=yes` dan timeout 10 detik mengonfirmasi TCP connect timeout sebelum host-key exchange/autentikasi. Probe `10.60.0.3:22` juga TCP timeout. Route aktual ke Docker memakai `en0` melalui gateway LAN `192.168.18.1`, bukan bukti tunnel MTI aktif. Ini bukan bukti password salah atau service produksi gagal.
+
+Tidak ada remote command berhasil, backup baru, fetch/pull/build/replacement, perubahan env/schema, atau mutasi router/AD/DB pada percobaan ini. Identitas container/image dan commit produksi belum dapat dibaca ulang; evidence rollout sebelumnya di atas tetap historis, bukan klaim follow-up telah deployed. Perlu pemulihan akses private-network/VPN sebelum backup dan rollout diulang. Tidak mengubah route/VPN/profile untuk memaksa akses. Dokumen ini belum di-commit oleh deployment subagent.

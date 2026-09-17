@@ -1,0 +1,64 @@
+# WiFi ICT Super Apps — checkpoint untuk melanjutkan
+
+Checkpoint: 2026-09-17 07:32 WIB. Pengguna meminta jeda dan penyimpanan state. Jangan menjalankan pekerjaan otomatis dari dokumen ini; tunggu permintaan lanjut.
+
+## Baca pertama
+- `docs/wifi-network-contract.md`: kontrak fase, scope dan otorisasi.
+- `docs/wifi-phase1-evidence.md`: hasil tes, deployment awal, follow-up, serta blocker.
+- Git/AGENTS dan keadaan produksi harus dicek kembali; snapshot ini bukan status live.
+
+## Posisi pekerjaan
+- Project lokal `/Users/widjis/Documents/Projects/ict-super-apps`.
+- Origin `https://github.com/widjis/ict-super-apps`, branch `main`.
+- HEAD/pushed implementasi terakhir `82660b9f0d4170a3e71701adfea633bd19f9f534`: comment perangkat + OCR MAC kamera/galeri.
+- Phase 1 awal sudah produksi pada commit `119b34427a25b911eb6bcc46b0a58c67d448386e`. Commit `260dd74788e36291d0fdda8a34c2977fa25b61be` merekam rollout awal.
+- Follow-up backend comment BELUM dideploy: percobaan terakhir gagal sebelum autentikasi karena VPN putus, Docker dan MikroTik timeout. Tidak ada perubahan produksi pada percobaan itu.
+- APK follow-up sudah dikirim Telegram. Pengguna mengatakan 'So far so good'; ini feedback positif, bukan bukti pengujian semua skenario OCR fisik.
+- Phase 2 dan selanjutnya belum dikerjakan. Phase 2B QR SSID ditujukan untuk IT Support, bukan publik/self-service umum.
+
+## Yang sudah dibuat
+- API `POST /api/wifi/lookup`, existing JWT/session + LDAP_ALLOWED_GROUPS (active membership fresh), read-only pinned SSH, bounded queries/cache/rate limits, none/single/multiple leases.
+- Check Status asli, mock WiFi metrics dihapus, registrasi/report fase berikut unavailable.
+- Follow-up: `deviceDescription` berasal dari DHCP lease comment, bukan pemilik AD terverifikasi. User menegaskan keterangan perangkat comment-based.
+- OCR Android lokal via bundled ML Kit: ambil foto atau galeri, kandidat MAC, pilih/edit/konfirmasi sebelum lookup. Tidak auto-lookup, tidak upload gambar atau raw OCR. Manual/paste tetap tersedia.
+- Review menemukan decoding gambar besar dan logging URI tidak aman; sudah diperbaiki menjadi bounded off-main decoder, InputImage.fromBitmap, private cleanup, cancellation/lifetime safety. Review ulang tidak menemukan blocker source-level.
+- Batas: 20 MiB input, 100 MP/32768-side sumber, 4 MP/2048-side output. API24–29 menolak unknown-length providers; operasi vendor yang benar-benar stuck dapat membuat OCR BUSY sampai selesai/restart. Tes fisik OEM/engine masih terbatas.
+
+## Hasil verifikasi terakhir
+- 47 frontend + 73 backend tests passed, lint/build passed.
+- Native: 23 tes OCR + 1 tes existing passed; reviewer mengulang selection 23 OCR, bukan seluruh 24.
+- Android lint 0 errors, 18 warnings yang didokumentasikan.
+- APK: `android/app/build/outputs/apk/debug/app-debug.apk`, 50,794,660 bytes.
+- SHA-256 `ccf87035efc37e309d3981c3f0ffcd1b42a8bdb8b756fdc97172b00917a457d6`.
+- 11/11 aset dist cocok; plugin dan model bundled; known router credentials tidak ditemukan dalam artifact. APK lama b185106... superseded, jangan kirim.
+- APK tidak di-Git dan dapat tertimpa build berikut; verifikasi hash sebelum kirim ulang.
+
+## Produksi dan scope izin
+- Docker `10.60.10.59`, project `/root/ict-super-apps`.
+- MikroTik `10.60.0.3`, user-approved SSH RSA fingerprint `SHA256:2+8LMB4ELZu61rJFsD++hqZEakgb4X6UgqVBFJ5c7Dw`.
+- User secara eksplisit mengizinkan akun pribadinya sebagai backend MikroTik; ini exception terhadap rencana awal akun layanan. Jangan buat akun baru/ubah hak tanpa izin.
+- Secrets tersimpan di protected `/Users/widjis/.hermes/.env`: `MIKROTIK_USER`, `MIKROTIK_PASSWORD`, `MTI_DOCKER_SSH_*`. Jangan cetak/copy ke Git/APK. Baca langsung di proses helper dengan identity verification.
+- Deploy backend saja; jangan mengganti worker foto atau container lain. Preserve env CORS/LDAP policy dan semua konfigurasi existing. Tidak ada izin mutasi lease/router/AD/VLAN/SSID/firewall dari scope read-only ini.
+- Existing LDAPS verification false tercatat; jangan diam-diam mengubah shared production setting. Laporkan risiko terpisah.
+- Backup rollout awal `/root/ict-backups/wifi-phase1-20260916T223832Z` mencakup source/env/image/DB.
+- Image backend awal `sha256:95bc491a44517035f00a6d5276532185a2b0e047fe9525175b489c1a6dc9f73c`.
+- Worker foto tetap image `sha256:72eec5c557d6805a53a9ffa73e95f7a5f32ed422cf29f5c8a337b123ce0934b6`; ambil baseline live baru sebelum rollout.
+
+## Langkah berikut saat pengguna meminta lanjut
+1. Baca kontrak/evidence/checkpoint, cek git/status dan VPN/internal TCP live. Jangan menganggap VPN sudah terhubung atau mengubah route tanpa scope yang jelas.
+2. Jika reachable: backup baru source/env/image; pastikan remote dirty aman sebelum fast-forward ke commit implementasi terbaru. Tidak ada schema migration untuk follow-up ini.
+3. Build/recreate backend saja; preserve env dan identity semua container lain.
+4. Verifikasi source commit/container image, health/auth deny, pinned RouterOS readback termasuk sanitized deviceDescription; tidak dump PII. Jangan klaim deploy dari local adapter test.
+5. Update evidence, commit/push dokumentasi dan verifikasi remote SHA. APK existing tidak perlu rebuild untuk perubahan dokumentasi/backend-only jika hash/source masih tepat.
+6. Minta user cek description serta OCR pada perangkatnya bila diperlukan. Jangan mulai Phase 2 sebelum menutup/menyepakati acceptance Phase1.
+
+## Helper sementara (cek keberadaan/isi sebelum dipakai)
+- `/tmp/ict_remote.py`, `/tmp/ict_root.py`: koneksi Docker, inspect safely.
+- `/tmp/ict-wifi-production-verify.py`: masih memverifikasi rollout awal berdasarkan backup marker lama; WAJIB disesuaikan untuk follow-up, jangan dianggap bukti rollout baru.
+- `/tmp/ict-wifi-comment-verify.py`: local adapter vs router, bukan production backend.
+- `/tmp/ict-followup-artifact-verify.py`, `/tmp/ict-followup-source-verify.py`: artifact/source checks.
+- `/tmp/ict-wifi-deploy-venv/bin/python`: dependency environment helper.
+- `/tmp` bisa hilang; rekontruksi dari code/docs bukan bergantung padanya.
+
+## Preferensi delivery
+Pengguna sering di luar meja laptop. Kirim APK sebagai attachment Telegram menggunakan MEDIA:absolute-path, bukan hanya menyebut path. Simpan credential di secret store; dokumen hanya referensi key. Fokus sisa pekerjaan penting sebelum melanjutkan fase besar; kuota terakhir dicek tersisa16%, reset19 September15:10 WIB (historis, cek ulang jika ditanya).
