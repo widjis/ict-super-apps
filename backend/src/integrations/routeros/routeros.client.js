@@ -2,7 +2,7 @@ import { Client } from 'ssh2';
 import { createHash } from 'node:crypto';
 import { normalizeMac } from '../../modules/wifi/wifi.service.js';
 
-const FIELDS = ['mac-address', 'server', 'address', 'active-address', 'status', 'disabled', 'dynamic'];
+const FIELDS = ['mac-address', 'server', 'address', 'active-address', 'status', 'disabled', 'dynamic', 'comment'];
 // This adapter deliberately exposes one operation, not exec or a generic RouterOS path.
 // Length-prefixed fields support spaces/quotes without interpreting RouterOS output as code.
 function commandFor(mac) {

@@ -1,6 +1,6 @@
 # Kontrak kerja WiFi & Network — ICT Super Apps
 
-Status: Phase 1 diimplementasikan, diverifikasi lokal dan backend produksi sudah dideploy dengan pengecualian akun personal yang disetujui. Login pengguna end-to-end dan uji APK pada perangkat Android masih belum terverifikasi. Phase 2–5 belum diimplementasikan. Lihat evidence Phase 1 di `docs/wifi-phase1-evidence.md`.
+Status: Phase 1 diimplementasikan, diverifikasi lokal dan backend produksi sudah dideploy dengan pengecualian akun personal yang disetujui. Pengguna telah membuktikan lookup berhasil pada Android fisik melalui screenshot. Follow-up deskripsi RouterOS comment dan OCR foto native diimplementasikan lokal; belum commit/push/deploy dan OCR fisik masih menunggu uji pengguna. Phase 2–5 belum diimplementasikan. Lihat evidence Phase 1 di `docs/wifi-phase1-evidence.md`.
 
 ## Dasar persetujuan
 
@@ -26,7 +26,7 @@ Android/React -> HTTPS backend ICT dengan autentikasi existing -> adapter Router
 - Aplikasi gagal dengan jelas jika sumber tidak tersedia: unavailable/stale beserta waktu observasi; bukan not registered, bukan sukses palsu.
 - Registered, DHCP bound, reachability, dan akses internet adalah status berbeda. Jangan memakai uptime router sebagai uptime perangkat.
 - Full/Limited adalah kategori pool sampai kebijakan akses terverifikasi. Registrasi DHCP tidak memindahkan VLAN/SSID dan pencabutan lease tidak menjamin disconnect instan.
-- Android: jangan menjanjikan auto-read MAC. Sediakan input/paste dan panduan randomized MAC per SSID; scan hanya jika format label memuat MAC yang tervalidasi.
+- Android: jangan menjanjikan auto-read MAC. Input/paste dan panduan randomized MAC per SSID tetap tersedia. Tambahan Phase 1 yang disetujui pengguna: foto kamera layar pengaturan HP lain atau pilih screenshot dari galeri, OCR native on-device, kandidat MAC eksplisit tervalidasi, lalu pengguna memilih/mengedit dan menekan konfirmasi sebelum lookup. Tidak ada lookup otomatis, cloud upload gambar/teks OCR, atau koreksi karakter ambigu seperti O→0. Browser menyatakan OCR tidak tersedia.
 - Semua perubahan existing lease perlu review/konfirmasi, verifikasi target ulang, audit, dan hasil readback. Jangan mengklaim transaksi atomik lintas PostgreSQL/RouterOS.
 - Tidak ada bulk delete, ubah VLAN/trunk, firewall, NAT, DNS, atau jaringan core dalam kontrak ini.
 
@@ -55,8 +55,8 @@ Output: kontrak API lookup MAC, adapter RouterOS, otorisasi ICT, layar cek nyata
 Acceptance:
 - Unit/integration tests: normalisasi dan invalid MAC, tidak ditemukan, satu/banyak lease, disabled, bound/waiting, address berupa pool vs active-address, sumber timeout/auth/TLS gagal, unauthorized/forbidden, dan rate limit.
 - Lookup tidak memilih lease pertama diam-diam jika MAC muncul di beberapa server; tampilkan hasil yang jelas.
-- API tidak membocorkan secret; data pemilik/komentar mengikuti izin. Tidak menebak employee dari komentar.
-- UI empty/loading/result/error/stale, input/paste dan akses mobile teruji; scan bukan syarat fase ini.
+- API tidak membocorkan secret. **Koreksi pengguna: deskripsi registrasi berada di DHCP lease `comment`; pengguna mengizinkan membacanya dan menampilkannya sebagai informasi perangkat pada ICT-only lookup.** Allowlist ditambah `comment`, respons `deviceDescription` nullable, hapus Unicode control/format, trim dan batas 512 UTF-16 code units; render sebagai plain text. Ini catatan bebas RouterOS, bukan bukti pemilik/AD employee terverifikasi. Jangan tulis komentar/MAC/foto/OCR ke log atau persistent client storage.
+- UI empty/loading/result/error/stale, input/paste dan akses mobile teruji. Pada follow-up yang disetujui, camera/gallery OCR perlu native build + parser/bridge/UI/lifecycle tests, serta smoke test fisik terpisah. Foto kamera hanya file privat sementara untuk handoff Android, dihapus setelah hasil/cancel/failure/timeout/destroy; cleanup startup untuk proses yang dihentikan OS. Galeri dibaca dari grant pilihan pengguna tanpa copy/persisted grant; gambar asli pengguna tidak dihapus. Batas: file capture dapat tersisa sampai startup berikutnya bila proses dibunuh; kamera/penyedia galeri eksternal dapat memiliki kebijakan retensinya sendiri.
 - Buktikan adapter fase ini hanya read-only; live lookup terbatas dibandingkan dengan router tanpa memublikasikan PII.
 - Tes/lint/build terkait lulus; APK debug diuji aset dan checksum jika fase dirilis. Status login/tidak tersedia tidak boleh dicache sebagai negative lookup.
 
@@ -150,5 +150,5 @@ Acceptance:
 ## Evidence ledger
 
 - Phase 0: dokumen kontrak dibuat berdasarkan persetujuan pengguna dan hasil inspeksi source/router. Tidak ada tes runtime atau perubahan router dalam fase dokumentasi ini. Referensi snapshot diagnosis lokal (tidak di-Git): /tmp/mikrotik-mapping-readonly.json; snapshot bisa hilang dan bukan sumber runtime aplikasi.
-- Phase 1: implementasi lokal, TDD/unit/HTTP/UI, read-only live adapter dan browser→HTTP→router (directory fixture terisolasi), lint, web build dan APK debug telah diuji. Bukti, checksum, batas pengujian dan acceptance blocked tercatat di `docs/wifi-phase1-evidence.md`. Backend-only produksi telah dideploy pada commit `119b34427a25b911eb6bcc46b0a58c67d448386e` dengan backup dan readback; tidak ada mutasi router/AD. Login pengguna HTTP end-to-end dan perangkat Android nyata belum diverifikasi.
+- Phase 1: implementasi lokal, TDD/unit/HTTP/UI, read-only live adapter dan browser→HTTP→router (directory fixture terisolasi), lint, web build dan APK debug telah diuji. Bukti, checksum, batas pengujian dan acceptance blocked tercatat di `docs/wifi-phase1-evidence.md`. Backend-only produksi telah dideploy pada commit `119b34427a25b911eb6bcc46b0a58c67d448386e` dengan backup dan readback; tidak ada mutasi router/AD. Screenshot pengguna kemudian membuktikan lookup di Android fisik berhasil; ini bukan bukti flow login telah diautomasi atau OCR native telah diuji. Follow-up comment/OCR hanya lokal, gate publikasi/deploy tetap menunggu review parent.
 - Phase 2–5 termasuk Phase 2B QR support-only: belum dimulai; seluruh acceptance fase tersebut masih terbuka.

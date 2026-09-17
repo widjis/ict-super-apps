@@ -7,10 +7,11 @@ import CheckDeviceStatusScreen from '../src/screens/CheckDeviceStatusScreen';
 import WifiNetworkScreen from '../src/screens/WifiNetworkScreen';
 import RegisterDeviceScreen from '../src/screens/RegisterDeviceScreen';
 import LeaseExpirationReportScreen from '../src/screens/LeaseExpirationReportScreen';
+import { Capacitor } from '@capacitor/core';
 import { sessionClient } from '../src/auth/session';
 const MAC = '02:AB:CD:EF:00:01';
 const result = (leases: any[] = []) => ({ ok: true, mac: MAC, match: leases.length > 1 ? 'multiple' : leases.length ? 'single' : 'none', leases, observedAt: new Date().toISOString(), stale: false, reachability: 'unknown', internetAccess: 'unknown' });
-const lease = { mac: MAC, server: 'fixture-A', configuredPool: 'fixture pool', configuredAddress: null, activeAddress: '10.0.0.8', dhcpStatus: 'bound', disabled: false, dynamic: false };
+const lease = { deviceDescription: '<b>Synthetic device</b>', mac: MAC, server: 'fixture-A', configuredPool: 'fixture pool', configuredAddress: null, activeAddress: '10.0.0.8', dhcpStatus: 'bound', disabled: false, dynamic: false };
 async function mount(t: TestContext, response: () => Promise<Response>, Screen: any = CheckDeviceStatusScreen) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://localhost' });
   const restore: (() => void)[] = [];
@@ -28,6 +29,47 @@ async function mount(t: TestContext, response: () => Promise<Response>, Screen: 
   const submit = async () => act(async () => { dom.window.document.querySelector('form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); });
   return { document: dom.window.document, calls, input, submit };
 }
+test('camera OCR requires candidate selection then editable confirmation before any lookup', async t => {
+  t.mock.method(Capacitor, 'getPlatform', () => 'android');
+  const sources: string[] = [];
+  const Screen = () => createElement(CheckDeviceStatusScreen, { scanImage: async (source: string) => { sources.push(source); return [MAC, '04:AB:CD:EF:00:02']; } } as any);
+  const ui = await mount(t, async () => Response.json(result()), Screen);
+  const click = async (text: string) => act(async () => { const button = [...ui.document.querySelectorAll('button')].find(b => b.textContent === text); assert.ok(button, text); button.click(); });
+  await click('Camera'); assert.deepEqual(sources, ['camera']); assert.equal(ui.calls.length, 0);
+  await ui.submit(); assert.equal(ui.calls.length, 0);
+  await click(MAC); assert.equal(ui.calls.length, 0);
+  assert.equal(ui.document.querySelector<HTMLInputElement>('#wifi-mac')!.value, MAC);
+  await ui.input('04abcdef0002'); await ui.submit();
+  assert.equal(ui.calls.length, 1); assert.equal(JSON.parse(ui.calls[0].init.body as string).mac, '04:AB:CD:EF:00:02');
+});
+test('late gallery OCR is discarded after manual editing; no automatic lookup', async t => {
+  t.mock.method(Capacitor, 'getPlatform', () => 'android');
+  let resolve!: (values: string[]) => void;
+  const Screen = () => createElement(CheckDeviceStatusScreen, { scanImage: () => new Promise<string[]>(r => { resolve = r; }) });
+  const ui = await mount(t, async () => Response.json(result()), Screen);
+  await act(async () => [...ui.document.querySelectorAll('button')].find(b => b.textContent === 'Gallery')!.click());
+  await ui.input('04abcdef0002'); await act(async () => resolve([MAC]));
+  assert.equal(ui.document.querySelector('[aria-label="MAC candidates"]') === null, true);
+  assert.equal(ui.document.querySelector<HTMLInputElement>('#wifi-mac')!.value, '04abcdef0002');
+  assert.equal(ui.calls.length, 0);
+});
+for (const mode of ['empty', 'cancel', 'denied']) test(`gallery ${mode} retains manual fallback without exposing diagnostics`, async t => {
+  t.mock.method(Capacitor, 'getPlatform', () => 'android');
+  const Screen = () => createElement(CheckDeviceStatusScreen, { scanImage: async () => {
+    if (mode === 'empty') return [];
+    throw Object.assign(new Error('private image path'), { code: mode === 'cancel' ? 'CANCELLED' : 'IMAGE_UNAVAILABLE' });
+  } });
+  const ui = await mount(t, async () => Response.json(result()), Screen);
+  await act(async () => [...ui.document.querySelectorAll('button')].find(b => b.textContent === 'Gallery')!.click());
+  assert.match(ui.document.body.textContent!, mode === 'empty' ? /No valid MAC/ : mode === 'cancel' ? /cancelled/ : /OCR unavailable/);
+  assert.doesNotMatch(ui.document.body.textContent!, /private image path/);
+  assert.equal(ui.calls.length, 0); await ui.input(MAC); await ui.submit(); assert.equal(ui.calls.length, 1);
+});
+test('older backend without description is unavailable, not a false empty RouterOS comment', async t => {
+  const { deviceDescription: _description, ...oldLease } = lease;
+  const ui = await mount(t, async () => Response.json(result([oldLease])));
+  await ui.input(MAC); await ui.submit(); assert.match(ui.document.body.textContent!, /Description unavailable.*backend update required/);
+});
 test('invalid MAC is rejected before transport; ordinary paste input works and none is not online', async t => {
   const ui = await mount(t, async () => Response.json(result()));
   for (const value of ['', 'invalid', 'FF:FF:FF:FF:FF:FF', '00:00:00:00:00:00', '02:AB-CD:EF:00:01']) {
@@ -108,6 +150,9 @@ test('Check Status starts empty, accepts typed/pasted MAC and renders all DHCP r
   assert.match(ui.document.querySelector('[role="status"]')!.textContent!, /Checking/);
   assert.equal(ui.document.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled, true);
   await act(async () => resolve(Response.json(result([lease, { ...lease, server: 'fixture-B', dhcpStatus: 'waiting', disabled: true, activeAddress: null }]))));
+  assert.match(ui.document.body.textContent!, /Device description.*<b>Synthetic device<\/b>/);
+  assert.equal(ui.document.querySelector('article b'), null);
+  assert.match(ui.document.body.textContent!, /not verified.*owner/i);
   assert.match(ui.document.body.textContent!, /Multiple leases/);
   assert.match(ui.document.body.textContent!, /fixture-A/); assert.match(ui.document.body.textContent!, /fixture-B/);
   assert.match(ui.document.body.textContent!, /Disabled/); assert.match(ui.document.body.textContent!, /bound/); assert.match(ui.document.body.textContent!, /waiting/);

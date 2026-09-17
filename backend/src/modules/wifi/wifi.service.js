@@ -13,7 +13,7 @@ export function createWifiService(adapter, { now = Date.now, maxConcurrent = 4 }
     let rows;
     try { rows = await adapter.lookup(mac); } finally { active--; }
     const leases = rows.map(row => ({
-      mac, server: row.server,
+      mac, server: row.server, deviceDescription: typeof row.comment === 'string' ? row.comment.replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 512) || null : null,
       configuredAddress: isIP(row.address ?? '') ? row.address : null,
       configuredPool: row.address && !isIP(row.address) ? row.address : null,
       activeAddress: isIP(row['active-address'] ?? '') ? row['active-address'] : null,

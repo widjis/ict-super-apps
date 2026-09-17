@@ -4,7 +4,7 @@ import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
 const load = () => import('../src/integrations/routeros/routeros.client.js').catch(() => ({}));
 const MAC = '02:AB:CD:EF:00:01';
-const fields = [MAC, 'fixture-server', 'fixture pool', '10.0.0.8', 'bound', 'false', 'false'];
+const fields = [MAC, 'fixture-server', 'fixture pool', '10.0.0.8', 'bound', 'false', 'false', 'Synthetic café device'];
 const frame = fields.map(s => `${Buffer.byteLength(s)}:${s}\r\n`).join('') + 'END\r\n';
 const key = Buffer.from('synthetic-key');
 const config = { host: 'fixture.invalid', username: 'fixture', password: 'fixture-secret', fingerprint: `SHA256:${createHash('sha256').update(key).digest('base64').replace(/=+$/, '')}` };
@@ -37,7 +37,7 @@ test('timed-out SSH connection cannot execute after a late ready event', async (
   await assert.rejects(createRouterOsAdapter({ config, timeoutMs: 5, clientFactory: () => c }).lookup(MAC), /SOURCE_TIMEOUT/);
   c.emit('ready'); assert.equal(c.command, undefined); assert.equal(c.ended, true);
 });
-test('SSH lookup pins identity, uses only fixed read commands, parses bounded frames and omits PII', async () => {
+test('SSH lookup pins identity, uses only fixed read commands, parses bounded frames and reads only authorized description metadata', async () => {
   const { createRouterOsAdapter } = await load(); assert.equal(typeof createRouterOsAdapter, 'function');
   const c = client(); const adapter = createRouterOsAdapter({ config, clientFactory: () => c });
   const rows = await adapter.lookup(MAC);
@@ -45,7 +45,9 @@ test('SSH lookup pins identity, uses only fixed read commands, parses bounded fr
   assert.equal(rows[0].address, 'fixture pool');
   assert.equal(c.options.hostVerifier(Buffer.from('wrong')), false);
   assert.match(c.command, /lease find where mac-address="02:AB:CD:EF:00:01"/);
-  assert.doesNotMatch(c.command, /comment|host-name|\b(add|set|remove|enable|disable|export|password)\b/);
+  assert.equal(rows[0].comment, 'Synthetic café device');
+  assert.match(c.command, /"comment"/);
+  assert.doesNotMatch(c.command, /host-name|\b(add|set|remove|enable|disable|export|password)\b/);
   assert.equal(c.ended, true);
   await assert.rejects(adapter.lookup(MAC + '"; reboot'), /INVALID_MAC/);
   assert.deepEqual(await createRouterOsAdapter({ config, clientFactory: () => client('END\r\n') }).lookup(MAC), []);

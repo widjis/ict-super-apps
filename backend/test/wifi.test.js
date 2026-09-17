@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 const MAC = '02:AB:CD:EF:00:01';
-test('lookup preserves every lease and separates pool, active IP, registration and DHCP state without PII', async () => {
+test('lookup preserves every lease and separates pool, active IP, registration and DHCP state with authorized description only', async () => {
   const { createWifiService } = await load();
   assert.equal(typeof createWifiService, 'function');
   const rows = [
@@ -20,7 +20,9 @@ test('lookup preserves every lease and separates pool, active IP, registration a
   assert.equal(result.leases[1].activeAddress, null);
   assert.equal(result.reachability, 'unknown'); assert.equal(result.internetAccess, 'unknown');
   assert.ok(Date.parse(result.observedAt)); assert.equal(result.stale, false);
-  assert.doesNotMatch(JSON.stringify(result), /private|comment|host-name|online/);
+  assert.equal(result.leases[0].deviceDescription, 'private owner');
+  assert.equal(result.leases[1].deviceDescription, null);
+  assert.doesNotMatch(JSON.stringify(result), /host-name|online|verifiedOwner/);
   assert.equal((await createWifiService({ lookup: async () => [] }).lookup(MAC)).match, 'none');
   assert.equal((await createWifiService({ lookup: async () => [rows[0]] }).lookup(MAC)).match, 'single');
 });
@@ -37,6 +39,14 @@ test('bounded concurrency and short positive-only cache never cache source error
   let failures = 0; const failed = createWifiService({ lookup: async () => { failures++; throw new Error('SOURCE_AUTH_FAILED'); } });
   for (let i = 0; i < 2; i++) await assert.rejects(failed.lookup(MAC), /SOURCE_AUTH_FAILED/);
   assert.equal(failures, 2);
+});
+test('device description strips controls/bidi, bounds text and does not infer ownership', async () => {
+  const { createWifiService } = await load();
+  for (const [comment, expected] of [['  Lab\u0000\u202e phone\n  ', 'Lab phone'], ['x'.repeat(600), 'x'.repeat(512)], ['', null], [42, null]]) {
+    const result = await createWifiService({ lookup: async () => [{ comment }] }).lookup(MAC);
+    assert.equal(result.leases[0].deviceDescription, expected);
+    assert.equal(result.leases[0].owner, undefined);
+  }
 });
 const load = () => import('../src/modules/wifi/wifi.service.js').catch(() => ({}));
 test('normalizes only explicit six-octet MAC formats; rejects multicast, zero and injection', async () => {
