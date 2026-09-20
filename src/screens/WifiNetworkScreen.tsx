@@ -33,12 +33,12 @@ export default function WifiNetworkScreen({ onNavigate }: { onNavigate?: (screen
           </span>
         </button>
 
-        <button type="button" disabled aria-labelledby="wifi-register-title wifi-register-badge" aria-describedby="wifi-register-description" className={`${cardClass} cursor-not-allowed`}>
+        <button type="button" onClick={() => onNavigate?.('register-device')} aria-labelledby="wifi-register-title wifi-register-badge" aria-describedby="wifi-register-description" className={`${cardClass} hover:border-primary/20 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary`}>
           <span className="shrink-0 w-12 h-12 min-[380px]:w-14 min-[380px]:h-14 rounded-xl bg-tertiary-container flex items-center justify-center text-tertiary" aria-hidden="true"><Router className="w-7 h-7 min-[380px]:w-8 min-[380px]:h-8" /></span>
           <span className="min-w-0 flex-1 pt-1">
-            <span id="wifi-register-title" className={titleClass}>Register Device</span>
-            <span id="wifi-register-description" className={descriptionClass}>Controlled device registration is not available yet.</span>
-            <span id="wifi-register-badge" className={badgeClass}>Coming soon</span>
+            <span className="flex items-start justify-between gap-2"><span id="wifi-register-title" className={titleClass}>Register Device</span><ChevronRight className="w-5 h-6 shrink-0 text-primary/60" aria-hidden="true" /></span>
+            <span id="wifi-register-description" className={descriptionClass}>Prepare and review a local draft. No registration is sent.</span>
+            <span id="wifi-register-badge" className={badgeClass}>Preview / Not connected</span>
           </span>
         </button>
 

@@ -198,6 +198,10 @@ Pada `2026-09-17T00:23:43Z`, checkout lokal clean dikonfirmasi pada target `8266
 
 Tidak ada remote command berhasil, backup baru, fetch/pull/build/replacement, perubahan env/schema, atau mutasi router/AD/DB pada percobaan ini. Identitas container/image dan commit produksi belum dapat dibaca ulang; evidence rollout sebelumnya di atas tetap historis, bukan klaim follow-up telah deployed. Perlu pemulihan akses private-network/VPN sebelum backup dan rollout diulang. Tidak mengubah route/VPN/profile untuk memaksa akses. Dokumen ini belum di-commit oleh deployment subagent.
 
+## Latest local preparation slice — separate Phase 3 exception
+
+Register Device UI-only preview evidence and the superseding debug APK checksum are in `wifi-register-preview-evidence.md`. This locally authorized preparation does not close Phase 1 physical/OCR/rollout gates, Phase 2 inventory, or connected Phase 3 registration. The new preview has no API submission or router writes. Earlier APK hashes below are historical.
+
 ## Check Device Status visual follow-up — 2026-09-20 WIB
 
 Scope: presentation only. `App.tsx` no longer adds the generic Slate Nexus header plus fixed-header spacer on this route. `CheckDeviceStatusScreen` owns a sticky, Asset Management-style title and one accessible `Back to WiFi & Network` action. Existing App hash/popstate/native back mapping and all other route headers are unchanged. No global rebrand, new fonts/dependencies, auth bypass in production, backend or native OCR changes.

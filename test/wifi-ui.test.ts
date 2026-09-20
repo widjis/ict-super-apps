@@ -15,6 +15,9 @@ const result = (leases: any[] = []) => ({ ok: true, mac: MAC, match: leases.leng
 const lease = { deviceDescription: '<b>Synthetic device</b>', mac: MAC, server: 'fixture-A', configuredPool: 'fixture pool', configuredAddress: null, activeAddress: '10.0.0.8', dhcpStatus: 'bound', disabled: false, dynamic: false };
 async function mount(t: TestContext, response: () => Promise<Response>, Screen: any = CheckDeviceStatusScreen) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://localhost' });
+  // React is imported before JSDOM in this Node harness and selects its legacy
+  // input-event polyfill. These no-op hooks avoid a JSDOM-only focus diagnostic.
+  Object.assign(dom.window.HTMLElement.prototype, { attachEvent() {}, detachEvent() {} });
   const restore: (() => void)[] = [];
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, localStorage: dom.window.localStorage, IS_REACT_ACT_ENVIRONMENT: true })) {
     const old = Object.getOwnPropertyDescriptor(globalThis, key);
@@ -30,6 +33,68 @@ async function mount(t: TestContext, response: () => Promise<Response>, Screen: 
   const submit = async () => act(async () => { dom.window.document.querySelector('form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); });
   return { document: dom.window.document, calls, input, submit };
 }
+test('registration preview validates whole MAC then reviews locally without registration or storage', async t => {
+  const ui = await mount(t, async () => { throw new Error('No request expected'); }, RegisterDeviceScreen);
+  assert.equal(Boolean(ui.document.querySelector('form')), true);
+  assert.match(ui.document.body.textContent!, /Preview \/ Not connected/);
+  for (const value of ['', 'bad', 'FF:FF:FF:FF:FF:FF', '00:00:00:00:00:00', '02:AB-CD:EF:00:01', 'prefix 02abcdef0001', '02abcdef0001 04abcdef0002']) {
+    await ui.input(value); await ui.submit();
+    assert.match(ui.document.querySelector('[role="alert"]')!.textContent!, /valid unicast MAC/);
+    assert.equal(ui.document.querySelector('[aria-label="Local review"]'), null);
+  }
+  await ui.input('02-ab-cd-ef-00-01'); await ui.submit();
+  assert.match(ui.document.querySelector('[aria-label="Local review"]')!.textContent!, /02:AB:CD:EF:00:01/);
+  assert.match(ui.document.body.textContent!, /No registration has been executed/);
+  assert.equal(ui.calls.length, 0);
+  assert.equal(localStorage.length, 0);
+  assert.equal(ui.document.querySelector('input[type="date"], select, input[name="employeeId"]'), null);
+  assert.match(ui.document.body.textContent!, /Employee.*Unavailable.*Category.*Unavailable/s);
+  await act(async () => [...ui.document.querySelectorAll('button')].find(b => b.textContent === 'Edit draft')!.click());
+  assert.equal(ui.document.querySelector<HTMLInputElement>('#register-mac')!.value, '02-ab-cd-ef-00-01');
+  assert.equal(ui.document.querySelector('[aria-label="Local review"]'), null);
+});
+
+test('optional registration draft text is bounded, rejects control/format characters and renders as plain text', async t => {
+  const ui = await mount(t, async () => { throw new Error('No request expected'); }, RegisterDeviceScreen);
+  const type = ui.document.querySelector<HTMLInputElement>('#register-type');
+  const description = ui.document.querySelector<HTMLTextAreaElement>('#register-description');
+  assert.equal(Boolean(type && description), true);
+  assert.equal(type!.maxLength, 64); assert.equal(description!.maxLength, 512);
+  const enter = async (el: HTMLInputElement | HTMLTextAreaElement, value: string) => act(async () => { el.value = value; el.dispatchEvent(new window.Event('input', { bubbles: true })); });
+  await ui.input(MAC);
+  for (const [el, value] of [[type!, 'a'.repeat(65)], [type!, 'Phone\u202e'], [description!, 'a'.repeat(513)], [description!, 'bad\u0000note'], [description!, 'bad\u200bnote']] as const) {
+    await enter(el, value); await ui.submit();
+    assert.match(ui.document.querySelector('[role="alert"]')!.textContent!, /plain text.*64.*512/);
+    assert.equal(ui.document.querySelector('[aria-label="Local review"]'), null);
+    await enter(el, '');
+  }
+  await enter(type!, 'Phone'); await enter(description!, '<b>Synthetic note</b>'); await ui.submit();
+  const review = ui.document.querySelector('[aria-label="Local review"]')!;
+  assert.match(review.textContent!, /Phone.*<b>Synthetic note<\/b>/s);
+  assert.equal(review.querySelector('b'), null);
+  assert.match(review.textContent!, /Unverified draft/);
+  assert.equal(ui.calls.length, 0); assert.equal(localStorage.length, 0);
+});
+
+test('actual App registration route has one back action; leaving discards the draft', async t => {
+  t.mock.method(sessionClient, 'restore', async () => true);
+  const Screen = () => { window.history.replaceState(null, '', '#register-device'); return createElement(App); };
+  const ui = await mount(t, async () => { throw new Error('No request expected'); }, Screen);
+  assert.doesNotMatch(ui.document.body.textContent!, /Slate Nexus/);
+  assert.equal(ui.document.querySelectorAll('h1').length, 1);
+  assert.equal(ui.document.querySelector('h1')!.textContent, 'Register Device');
+  assert.equal(ui.document.querySelectorAll('header button').length, 1);
+  await ui.input(MAC); await ui.submit();
+  await act(async () => ui.document.querySelector<HTMLButtonElement>('button[aria-label="Back to WiFi & Network"]')!.click());
+  assert.equal(window.location.hash, '#wifi-network');
+  await act(async () => ui.document.querySelector<HTMLButtonElement>('button[aria-labelledby="wifi-register-title wifi-register-badge"]')!.click());
+  assert.equal(window.location.hash, '#register-device');
+  assert.equal(ui.document.querySelector<HTMLInputElement>('#register-mac')!.value, '');
+  assert.equal(ui.document.querySelector('[aria-label="Local review"]'), null);
+  assert.equal(ui.calls.length, 0);
+  assert.equal(localStorage.length, 0);
+});
+
 test('actual App lookup route has one named back action and returns to WiFi hub', async t => {
   t.mock.method(sessionClient, 'restore', async () => true);
   const Screen = () => { window.history.replaceState(null, '', '#check-device-status'); return createElement(App); };
@@ -138,7 +203,7 @@ test('old observation is stale, malformed response and network failures never be
   mode = 1; await ui.submit(); assert.match(ui.document.querySelector('[role="alert"]')!.textContent!, /unavailable/i);
   mode = 2; await ui.submit(); assert.match(ui.document.querySelector('[role="alert"]')!.textContent!, /unavailable/i);
 });
-test('WiFi hub exposes one whole-card action and honest disabled upcoming tools', async t => {
+test('WiFi hub exposes lookup and explicitly labeled registration preview but keeps report disabled', async t => {
   const destinations: string[] = [];
   const Screen = () => createElement(WifiNetworkScreen, { onNavigate: (screen: string) => destinations.push(screen) });
   const ui = await mount(t, async () => { throw new Error('No request expected'); }, Screen);
@@ -150,7 +215,9 @@ test('WiFi hub exposes one whole-card action and honest disabled upcoming tools'
   assert.match(active.textContent!, /Check Status.*MAC address/);
   assert.match(ui.document.querySelector('#wifi-check-description')!.textContent!, /not proof of connectivity/);
   await act(async () => buttons.forEach(b => b.click()));
-  assert.deepEqual(destinations, ['check-device-status']);
+  assert.deepEqual(destinations, ['check-device-status', 'register-device']);
+  assert.match(buttons[1].textContent!, /Preview \/ Not connected/);
+  assert.equal(buttons[2].disabled, true);
   for (const button of buttons.filter(b => b.disabled)) {
     assert.match(button.textContent!, /Coming soon/);
     assert.equal(button.querySelector('.lucide-chevron-right'), null);
@@ -162,7 +229,7 @@ test('WiFi hub and future screens expose no mock metrics or working provisioning
   const ui = await mount(t, async () => { throw new Error('No request expected'); }, WifiNetworkScreen);
   assert.doesNotMatch(ui.document.body.textContent!, /1,204|64%|mk-hq|active directory/i);
   assert.match(ui.document.body.textContent!, /ICT support/);
-  assert.ok([...ui.document.querySelectorAll('button')].filter(b => b.disabled).length >= 2);
+  assert.equal([...ui.document.querySelectorAll('button')].filter(b => b.disabled).length, 1);
 });
 for (const Screen of [RegisterDeviceScreen, LeaseExpirationReportScreen]) {
   test(`${Screen.name} remains unavailable without mock data`, async t => {

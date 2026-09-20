@@ -330,21 +330,7 @@ function getStringField(obj: Record<string, unknown> | null, key: string) {
         )}
         {activeTab === 'asset-lookup' && <AssetLookupScreen onBack={() => setActiveTab('assets-license')} />}
         {activeTab === 'wifi-network' && <WifiNetworkScreen onNavigate={(tab) => setActiveTab(tab)} />}
-        {activeTab === 'register-device' && (
-          <>
-            <header className="fixed top-0 w-full z-50 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-6 h-safe-16">
-              <div className="flex items-center gap-4">
-                <button onClick={() => setActiveTab('wifi-network')} className="text-slate-500 hover:bg-slate-200/50 p-2 rounded-full transition-colors active:scale-95 duration-200">
-                  <ArrowLeft className="w-6 h-6" />
-                </button>
-                <h1 className="text-xl font-extrabold tracking-tighter text-slate-900 dark:text-slate-50">Slate Nexus</h1>
-              </div>
-            </header>
-            <div className="pt-safe-16">
-              <RegisterDeviceScreen onBack={() => setActiveTab('wifi-network')} />
-            </div>
-          </>
-        )}
+        {activeTab === 'register-device' && <RegisterDeviceScreen onBack={() => setActiveTab('wifi-network')} />}
         {activeTab === 'check-device-status' && <CheckDeviceStatusScreen onBack={() => setActiveTab('wifi-network')} />}
         {activeTab === 'lease-expiration' && (
           <>

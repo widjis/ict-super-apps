@@ -1,6 +1,6 @@
 # Kontrak kerja WiFi & Network — ICT Super Apps
 
-Status: Phase 1 diimplementasikan, diverifikasi lokal dan backend produksi sudah dideploy dengan pengecualian akun personal yang disetujui. Pengguna telah membuktikan lookup berhasil pada Android fisik melalui screenshot. Follow-up deskripsi RouterOS comment dan OCR foto native diimplementasikan lokal; belum commit/push/deploy dan OCR fisik masih menunggu uji pengguna. Phase 2–5 belum diimplementasikan. Lihat evidence Phase 1 di `docs/wifi-phase1-evidence.md`.
+Status: Phase 1 read-only lookup is implemented and its initial backend rollout is documented; comment/OCR follow-up source is committed, but backend-comment rollout and physical OCR acceptance remain open. Baseline for this slice: `c27a0c4fc4a7c89d3a4a97035f3420106df28663` on `main`. Phase 2/2B inventory and QR remain unimplemented. Phase 3 has an explicitly authorized **UI-only preparation exception**, not connected registration; all registration/write acceptance remains open. Phase 4/5 remain unimplemented. Latest local preview evidence: `wifi-register-preview-evidence.md`. Historical rollout evidence: `wifi-phase1-evidence.md`.
 
 ## Dasar persetujuan
 
@@ -103,6 +103,19 @@ Acceptance:
 
 ## Phase 3 — Registrasi ICT terkontrol
 
+### Authorized preparation exception — UI only
+
+The user approved continuing with Register Device UI validation, local review and tests without VPN. This narrowly permits preparation before Phase 2 inventory is implemented; it does not close Phase 2, authorize router/backend writes, or supersede the read-only personal-account restriction.
+
+- Register Device is navigable and labeled **Preview / Not connected**. Review is local only: no submit API, fake success, duplicate-lease check or claimed registration result.
+- Manual/paste MAC uses the existing MAC candidate validator plus a whole-input format gate. Device type (64 UTF-16 code units) and description (512) are optional unverified plain-text drafts, rejecting Unicode control/format characters. These are local safety bounds, **not approved production type choices or a RouterOS comment schema**.
+- Existing directory source is `/api/ad/users`, used by `UserManagementScreen.tsx` with `samAccountName` and optional `employeeId`. This preview makes no directory calls and accepts no arbitrary employee ID; selection/ownership is explicitly unavailable/unverified. Connected work must reuse the directory and revalidate the chosen identity server-side under an agreed association policy.
+- Live category/pool catalog and per-role permissions are unavailable. No selectable production pool or privileged category is hardcoded from the historical mapping table.
+- No expiry input while the enforcement worker is absent. No MAC, notes or employee PII in persistent client storage, URLs, logging or transport. Draft state is discarded on leaving the screen.
+- Actual App route has one scoped header/back; Check Status/OCR behavior and Lease Report's disabled state are preserved. Review is not authorization or confirmation of access.
+
+Connected registration remains governed by the output/acceptance below and the open questions in `open-questions-and-challenges.md`.
+
 Output: form existing tersambung backend, employee directory reuse, jenis perangkat, MAC, kategori yang diizinkan, komentar dan review/confirmation. Awal tanpa expiry aktif jika Phase 5 belum selesai; jangan menerima durasi yang tidak dapat ditegakkan.
 
 Acceptance:
@@ -151,4 +164,4 @@ Acceptance:
 
 - Phase 0: dokumen kontrak dibuat berdasarkan persetujuan pengguna dan hasil inspeksi source/router. Tidak ada tes runtime atau perubahan router dalam fase dokumentasi ini. Referensi snapshot diagnosis lokal (tidak di-Git): /tmp/mikrotik-mapping-readonly.json; snapshot bisa hilang dan bukan sumber runtime aplikasi.
 - Phase 1: implementasi lokal, TDD/unit/HTTP/UI, read-only live adapter dan browser→HTTP→router (directory fixture terisolasi), lint, web build dan APK debug telah diuji. Bukti, checksum, batas pengujian dan acceptance blocked tercatat di `docs/wifi-phase1-evidence.md`. Backend-only produksi telah dideploy pada commit `119b34427a25b911eb6bcc46b0a58c67d448386e` dengan backup dan readback; tidak ada mutasi router/AD. Screenshot pengguna kemudian membuktikan lookup di Android fisik berhasil; ini bukan bukti flow login telah diautomasi atau OCR native telah diuji. Follow-up comment/OCR hanya lokal, gate publikasi/deploy tetap menunggu review parent.
-- Phase 2–5 termasuk Phase 2B QR support-only: belum dimulai; seluruh acceptance fase tersebut masih terbuka.
+- Phase 2/2B, connected Phase 3 and Phase 4/5 acceptance remain open. The authorized Phase 3 UI-only preparation exception above is implemented locally and evidenced in `wifi-register-preview-evidence.md`; it does not mark registration or inventory complete.

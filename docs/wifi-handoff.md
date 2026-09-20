@@ -1,5 +1,15 @@
 # WiFi ICT Super Apps — checkpoint untuk melanjutkan
 
+## Latest: Register Device UI-only preview
+
+- Baseline `c27a0c4fc4a7c89d3a4a97035f3420106df28663` on `main`; source changes are uncommitted pending parent review. Do not include the pre-existing dirty `AGENTS.md`.
+- User authorized a scoped Phase 3 UI-only exception: navigable **Preview / Not connected**, MAC validation, optional unverified device notes and local review/edit. No submit API, owner verification, selectable catalog, expiry, persistence or writes. **Phase 2 and connected registration are not complete.**
+- 53 frontend + 73 backend + 24 native tests passed; typecheck/web/clean debug APK passed; Android lint 0 errors / 18 existing warnings. Actual App fixture at 320/390/768 passed keyboard validation/review/edit/back, draft discard and zero API/storage checks.
+- Latest APK: `android/app/build/outputs/apk/debug/app-debug.apk`, **50,798,808 bytes**, SHA-256 **`f26161fd4ce80d5bd1b460b68c180541b911cbc6b3e5d247ac37d35f8a7b9ff2`**; 11/11 dist assets match, fixture absent. Parent should review then send as a Telegram attachment. Older APK hashes below are superseded.
+- Evidence/screenshots: `docs/wifi-register-preview-evidence.md` and `/tmp/ict-wifi-register-qa/`. Decisions for connected work: `docs/open-questions-and-challenges.md`. No VPN/auth/secret/server/production calls; backend-comment rollout and physical-device/OCR gates remain open.
+- Sections below are historical checkpoints, not current publication/artifact status. Read the active roadmap and latest contract status first.
+
+
 Checkpoint: 2026-09-17 07:32 WIB. Pengguna meminta jeda dan penyimpanan state. Jangan menjalankan pekerjaan otomatis dari dokumen ini; tunggu permintaan lanjut.
 
 ## Check Device Status terbaru — 2026-09-20 WIB
