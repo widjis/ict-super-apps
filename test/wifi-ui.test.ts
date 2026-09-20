@@ -5,6 +5,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import CheckDeviceStatusScreen from '../src/screens/CheckDeviceStatusScreen';
 import WifiNetworkScreen from '../src/screens/WifiNetworkScreen';
+import App from '../src/App';
 import RegisterDeviceScreen from '../src/screens/RegisterDeviceScreen';
 import LeaseExpirationReportScreen from '../src/screens/LeaseExpirationReportScreen';
 import { Capacitor } from '@capacitor/core';
@@ -15,7 +16,7 @@ const lease = { deviceDescription: '<b>Synthetic device</b>', mac: MAC, server: 
 async function mount(t: TestContext, response: () => Promise<Response>, Screen: any = CheckDeviceStatusScreen) {
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://localhost' });
   const restore: (() => void)[] = [];
-  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true })) {
+  for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document, localStorage: dom.window.localStorage, IS_REACT_ACT_ENVIRONMENT: true })) {
     const old = Object.getOwnPropertyDescriptor(globalThis, key);
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
     restore.push(() => old ? Object.defineProperty(globalThis, key, old) : Reflect.deleteProperty(globalThis, key));
@@ -29,6 +30,39 @@ async function mount(t: TestContext, response: () => Promise<Response>, Screen: 
   const submit = async () => act(async () => { dom.window.document.querySelector('form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); });
   return { document: dom.window.document, calls, input, submit };
 }
+test('actual App lookup route has one named back action and returns to WiFi hub', async t => {
+  t.mock.method(sessionClient, 'restore', async () => true);
+  const Screen = () => { window.history.replaceState(null, '', '#check-device-status'); return createElement(App); };
+  const ui = await mount(t, async () => Response.json({}), Screen);
+  assert.doesNotMatch(ui.document.body.textContent!, /Slate Nexus/);
+  const back = ui.document.querySelector<HTMLButtonElement>('button[aria-label="Back to WiFi & Network"]');
+  assert.equal(Boolean(back), true);
+  assert.equal(ui.document.querySelectorAll('header button').length, 1);
+  assert.equal(ui.document.querySelectorAll('h1').length, 1);
+  assert.equal(ui.document.querySelector('h1')!.textContent, 'Check Device Status');
+  assert.equal([...ui.document.querySelectorAll('button')].some(b => b.textContent === 'Back'), false);
+  await act(async () => back!.click());
+  assert.equal(window.location.hash, '#wifi-network');
+  assert.equal(Boolean(ui.document.querySelector('[aria-label="Network tools"]')), true);
+  assert.equal(ui.calls.length, 0);
+});
+test('compact MAC guidance and photo privacy remain accessible with browser fallback', async t => {
+  const ui = await mount(t, async () => { throw new Error('No request expected'); });
+  const details = [...ui.document.querySelectorAll('details')];
+  assert.equal(details.length, 2);
+  assert.deepEqual(details.map(d => d.querySelector('summary')?.textContent), ['Where to find your MAC', 'Photo OCR & privacy']);
+  assert.equal(details.every(d => !d.open), true);
+  assert.match(details[0].textContent!, /selected SSID.*randomized MAC.*not another network.*does not auto-read/s);
+  assert.match(details[1].textContent!, /Images and recognized text are not uploaded.*ML Kit may send usage\/performance metrics to Google/s);
+  assert.match(ui.document.querySelector('#wifi-photo-help')!.textContent!, /Browser photo OCR is not available/);
+  for (const text of ['Camera', 'Gallery']) {
+    const button = [...ui.document.querySelectorAll('button')].find(b => b.textContent === text)!;
+    assert.equal(button.disabled, true);
+    assert.equal(Boolean(button.querySelector('svg[aria-hidden="true"]')), true);
+  }
+  assert.equal(ui.document.querySelector('#wifi-mac')!.getAttribute('aria-describedby'), 'wifi-help');
+  assert.equal(ui.calls.length, 0);
+});
 test('camera OCR requires candidate selection then editable confirmation before any lookup', async t => {
   t.mock.method(Capacitor, 'getPlatform', () => 'android');
   const sources: string[] = [];

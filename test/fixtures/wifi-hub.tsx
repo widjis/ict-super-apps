@@ -10,8 +10,8 @@ import '../../src/index.css';
 function Fixture() {
   const [screen, setScreen] = useState('wifi-network');
   return <div className="min-h-screen bg-surface font-body text-on-surface">
-    <TopBar title="WiFi & Network" showBack onBack={() => setScreen('wifi-network')} menuItems={[{ label: 'Fixture only — no account', onClick: () => {} }]} />
-    <main>{screen === 'check-device-status' ? <CheckDeviceStatusScreen /> : <WifiNetworkScreen onNavigate={setScreen} />}</main>
+    {screen !== 'check-device-status' && <TopBar title="WiFi & Network" showBack onBack={() => setScreen('wifi-network')} menuItems={[{ label: 'Fixture only — no account', onClick: () => {} }]} />}
+    <main>{screen === 'check-device-status' ? <CheckDeviceStatusScreen onBack={() => setScreen('wifi-network')} /> : <WifiNetworkScreen onNavigate={setScreen} />}</main>
     {screen !== 'check-device-status' && <BottomNav activeTab="wifi-network" setActiveTab={setScreen} />}
   </div>;
 }

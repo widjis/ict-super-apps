@@ -2,7 +2,14 @@
 
 Checkpoint: 2026-09-17 07:32 WIB. Pengguna meminta jeda dan penyimpanan state. Jangan menjalankan pekerjaan otomatis dari dokumen ini; tunggu permintaan lanjut.
 
-## Follow-up UI terbaru — 2026-09-20 WIB
+## Check Device Status terbaru — 2026-09-20 WIB
+- Detail lookup kini senada hub: header route asli `Check Device Status` dengan satu back ke WiFi, intro/icon ringkas, form putih, Camera/Gallery icons, disclosure MAC/privacy, dan states konsisten. Generic Slate Nexus/duplicate Back dibuang hanya untuk route ini; native-back mapping dan seluruh lookup/OCR logic tetap.
+- Baseline source `b61c321117e973743b41c6410ad9cbd1d0327366` main. Perubahan lokal belum commit/push; tunggu review parent. Jangan ikutkan dirty `AGENTS.md` pre-existing.
+- Verifikasi: 50 frontend + 73 backend + 24 native tests, typecheck/web/clean APK build passed, Android lint 0 errors/18 existing warnings. Browser actual App fixture 320/390/768 serta keyboard dan synthetic result/OCR confirmation passed. Lihat evidence terbaru dan `/tmp/ict-wifi-status-qa/`.
+- **APK untuk delivery setelah review:** `android/app/build/outputs/apk/debug/app-debug.apk`, 50,796,708 bytes; SHA-256 `e06083f7caa9f0a0857eda359772a15ce8590d2f2bc92384208ec630eee9a670`. 11/11 dist assets cocok, fixture tidak packaged. Hash ini menggantikan semua APK historis di bawah. Parent perlu kirim sebagai Telegram attachment.
+- Tidak ada VPN/server/backend/native changes. OpenAPI absent/unchanged. Uji physical-device OCR/OEM dan backend-comment rollout tetap terbuka, bukan dibuktikan oleh fixture lokal.
+
+## Follow-up hub sebelumnya — 2026-09-20 WIB
 - Hub WiFi diselaraskan dengan Asset Management existing: horizontal white cards, colored icon tiles, Operations Hub eyebrow, Check Status aktif; Register Device/Lease Report disabled Coming soon. OCR/lookup/backend dan navigasi global tidak diubah.
 - Verifikasi lokal: 48 frontend + 73 backend tests; 24 native tests; lint/typecheck/build passed, Android lint 0 errors/18 existing warnings. Browser fixture 320/390/768 tanpa horizontal overflow dan final content clear bottom nav saat scroll; bukan bukti integrasi/device fisik.
 - APK terbaru menggantikan checksum historis di bawah: `android/app/build/outputs/apk/debug/app-debug.apk`, 50,795,324 bytes; SHA-256 `c76fc70266b84e86ea035f2d012003b97c20ba0441a1493e4d5676715f7f4e50`, 11/11 aset dist cocok. Kirim attachment setelah review parent; belum dikirim oleh subagent.
