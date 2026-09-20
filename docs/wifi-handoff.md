@@ -2,6 +2,13 @@
 
 Checkpoint: 2026-09-17 07:32 WIB. Pengguna meminta jeda dan penyimpanan state. Jangan menjalankan pekerjaan otomatis dari dokumen ini; tunggu permintaan lanjut.
 
+## Follow-up UI terbaru — 2026-09-20 WIB
+- Hub WiFi diselaraskan dengan Asset Management existing: horizontal white cards, colored icon tiles, Operations Hub eyebrow, Check Status aktif; Register Device/Lease Report disabled Coming soon. OCR/lookup/backend dan navigasi global tidak diubah.
+- Verifikasi lokal: 48 frontend + 73 backend tests; 24 native tests; lint/typecheck/build passed, Android lint 0 errors/18 existing warnings. Browser fixture 320/390/768 tanpa horizontal overflow dan final content clear bottom nav saat scroll; bukan bukti integrasi/device fisik.
+- APK terbaru menggantikan checksum historis di bawah: `android/app/build/outputs/apk/debug/app-debug.apk`, 50,795,324 bytes; SHA-256 `c76fc70266b84e86ea035f2d012003b97c20ba0441a1493e4d5676715f7f4e50`, 11/11 aset dist cocok. Kirim attachment setelah review parent; belum dikirim oleh subagent.
+- Source/test fixture/evidence siap review parent; belum commit/push oleh subagent. Dirty `AGENTS.md` sudah ada sebelum pekerjaan, jangan ikut stage. Roadmap scoped baru ada di `docs/implementation-roadmap.md`; OpenAPI absent/unchanged, task UI-only.
+- Tidak ada percobaan VPN/deployment. Backend comment belum deployed; gate OCR fisik tetap terbuka. Evidence rinci di bagian visual follow-up dokumen evidence.
+
 ## Baca pertama
 - `docs/wifi-network-contract.md`: kontrak fase, scope dan otorisasi.
 - `docs/wifi-phase1-evidence.md`: hasil tes, deployment awal, follow-up, serta blocker.

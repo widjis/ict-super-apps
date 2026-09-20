@@ -104,6 +104,26 @@ test('old observation is stale, malformed response and network failures never be
   mode = 1; await ui.submit(); assert.match(ui.document.querySelector('[role="alert"]')!.textContent!, /unavailable/i);
   mode = 2; await ui.submit(); assert.match(ui.document.querySelector('[role="alert"]')!.textContent!, /unavailable/i);
 });
+test('WiFi hub exposes one whole-card action and honest disabled upcoming tools', async t => {
+  const destinations: string[] = [];
+  const Screen = () => createElement(WifiNetworkScreen, { onNavigate: (screen: string) => destinations.push(screen) });
+  const ui = await mount(t, async () => { throw new Error('No request expected'); }, Screen);
+  const section = ui.document.querySelector('[aria-label="Network tools"]')!;
+  const buttons = [...section.querySelectorAll('button')];
+  assert.equal(buttons.length, 3);
+  const active = buttons.find(b => !b.disabled)!;
+  assert.equal(active.getAttribute('aria-labelledby'), 'wifi-check-title');
+  assert.match(active.textContent!, /Check Status.*MAC address/);
+  assert.match(ui.document.querySelector('#wifi-check-description')!.textContent!, /not proof of connectivity/);
+  await act(async () => buttons.forEach(b => b.click()));
+  assert.deepEqual(destinations, ['check-device-status']);
+  for (const button of buttons.filter(b => b.disabled)) {
+    assert.match(button.textContent!, /Coming soon/);
+    assert.equal(button.querySelector('.lucide-chevron-right'), null);
+  }
+  assert.match(ui.document.body.textContent!, /Operations Hub/);
+  assert.equal(ui.calls.length, 0);
+});
 test('WiFi hub and future screens expose no mock metrics or working provisioning/expiry actions', async t => {
   const ui = await mount(t, async () => { throw new Error('No request expected'); }, WifiNetworkScreen);
   assert.doesNotMatch(ui.document.body.textContent!, /1,204|64%|mk-hq|active directory/i);
