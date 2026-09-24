@@ -1,6 +1,20 @@
 # Implementation roadmap
 
-## Active: WiFi Phase 3 — authorized UI-only preparation exception
+## Current documentation slice — legacy registration contract alignment
+
+Objective: apply the user-approved source-review findings to the WiFi contract without application, API or infrastructure changes. Implementation phase remains the Phase 3 UI-only exception below.
+
+Sources: `wifi-legacy-registration-review.md`, `wifi-network-contract.md`, `wifi-phase1-evidence.md`, `open-questions-and-challenges.md`.
+
+- [x] Correct historical mock-screen wording and expiry attribution to both reviewed implementations.
+- [x] Preserve exact category keys, pool/server provenance and legacy SSID hints separately from unverified live AP/access policy.
+- [x] Make shared-service authorization, validation, duplicate/concurrency/readback/reconciliation and durable expiry acceptance explicit.
+- [x] Preserve unresolved category/ownership/comment/SSID/scheduler decisions and read-only/write-approval boundaries.
+- [ ] Connected registration, worker implementation and associated runtime acceptance remain unimplemented.
+
+Output: documentation-only alignment; no backend/API change, no OpenAPI schema change, no deployment or router mutation. Verification performed: amendments compared with the cited source review; scoped Git diff inspected; `git diff --check` exited 0. Only the contract, roadmap, open questions and handoff were edited; pre-existing dirty `AGENTS.md` and untracked review report were preserved. No runtime tests/builds were run for these prose-only changes. Publication is separate from this local edit.
+
+## Active implementation: WiFi Phase 3 — authorized UI-only preparation exception
 
 Objective: provide useful local validation/review for Register Device without VPN, API submission, router writes, employee ownership claims or production category choices. The user's “Oke lanjutkan” authorizes this preparation slice only. This is an explicit sequencing exception, **not completion of Phase 2, Phase 3 registration or any prior rollout/physical-device gate**.
 

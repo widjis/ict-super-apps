@@ -12,6 +12,13 @@ The current Register Device preview is an authorized UI-only preparation excepti
 6. **Write safety:** persistent intent/audit, backend RBAC and pool validation, idempotency, duplicate/concurrent submission handling, revalidation/readback, ambiguous timeout reconciliation and no unapproved existing-lease adoption/overwrite remain unimplemented.
 7. **Expiry:** no duration input or enforcement claim before Phase 5 worker, scheduler handover and policy are implemented. DHCP lease-time is not registration expiry.
 
+## Legacy comparison — unresolved evidence after contract alignment
+
+- Confirm exact SSID case and AP/VLAN mapping: legacy help uses `MTI-01/02/03`, while the approved catalog preserves `mti-01/02/03`. Neither the help nor DHCP pool selection proves association or access enforcement.
+- Obtain the deployed bot/workflow revision and scheduler ownership before migration. External n8n classification/authorization remains unreviewed; do not infer it from gateway help or dormant AI dispatch.
+- No reviewed source establishes employee-to-category classification, structured employee/device comments or `DHCP_DISABLED`. Obtain the exact missing source if required; do not invent policy or extra provisioning categories.
+- Contract alignment adds acceptance requirements, not implementation: shared-service authorization, strict MAC/comment validation, durable intent/idempotency/readback/reconciliation, and durable expiry with verified cleanup remain open.
+
 ## Separate open gates
 
 - Phase 2 inventory and Phase 2B support-only QR are unimplemented.

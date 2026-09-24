@@ -8,12 +8,13 @@ Pengguna menyetujui rekomendasi alat operasional ICT terlebih dahulu: Check Stat
 
 ## Baseline dan batas bukti
 
-- Empat layar existing masih mock: WifiNetworkScreen, RegisterDeviceScreen, CheckDeviceStatusScreen, LeaseExpirationReportScreen. Navigasi/state visual tidak berarti integrasi telah tersedia.
+- Baseline awal memiliki empat layar mock; pernyataan itu historis, bukan status sekarang. Check Device Status sudah memakai lookup nyata, hub tidak lagi menampilkan metrik mock, Register Device hanya preview lokal tanpa submit, dan Lease Report belum tersedia. Status rollout/OCR mengikuti evidence terpisah; navigasi/review lokal bukan bukti registrasi.
 - Pemeriksaan read-only router 10.60.0.3 (DHCP-CCR-PYRITE, CCR2116-12G-4S+, RouterOS 7.12.1) menunjukkan DHCP terpusat via relay pada TO_CS9300_PO_E3/E4; management loopback 10.60.0.3/32; transit 172.60.0.6/30; default route OSPF ke 172.60.0.5.
 - Tidak ada interface VLAN atau bridge VLAN pada router tersebut. Nomor VLAN berasal dari nama konfigurasi, bukan bukti konfigurasi switch/AP. Kebijakan Full/Limited, isolasi, bandwidth, dan VLAN end-to-end belum diverifikasi.
 - Snapshot menunjukkan 3667 static leases dan 0 dynamic; ini bukan jumlah perangkat online. Angka snapshot tidak boleh menjadi konstanta UI.
 - Seluruh rule filter yang diperiksa disabled, simple queue 0; ini tidak membuktikan tidak ada kebijakan pada perangkat jaringan lain.
-- Implementasi bot lama di whatsapp_api_n8nv2/reference/index_old.js memiliki bug expiry: metadata Redis kedaluwarsa sebelum cleanup membutuhkannya. Jangan menyalin mekanisme itu.
+- Bug expiry terdapat pada `whatsapp_api_n8nv2/reference/index_old.js` dan blok WiFi aktif yang sama pada sibling `whatsapp_api_n8n/index.js`: metadata Redis ber-TTL hilang sebelum cleanup memerlukannya setelah deadline. Polling lebih sering bukan perbaikan. Reference v2 adalah material lokal ignored; pemilihan entrypoint sibling bukan bukti bot yang deployed. Detail, fingerprint dan citation source: `wifi-legacy-registration-review.md`.
+- Revisi kontrak ini disetujui pengguna untuk menyelaraskan hasil review source saja. Tidak mengizinkan implementasi write, deployment, lease uji, perubahan akun atau konfigurasi jaringan. Temuan source tidak menggantikan snapshot router maupun verifikasi live terbaru.
 
 ## Arsitektur dan aturan wajib
 
@@ -42,6 +43,14 @@ Android/React -> HTTPS backend ICT dengan autentikasi existing -> adapter Router
 | Contractor regular | CONTRACTOR_VLAN_67 | DHCP_CONTRACTOR_VLAN67 | 10.60.34.0/24 / 10.60.34.1 |
 
 Pool tambahan TV, printer, contractor VIP/CKB harus terlihat pada inventaris jika berizin tetapi tidak otomatis menjadi pilihan provisioning. Pool nonstaff berantai ke _29, _30, _31. Keempat DHCP aktif (termasuk printer) static-only. DHCP_NETWORK disabled. Jangan mengubah kondisi ini.
+
+### Provenance dan batas penggunaan referensi legacy
+
+Mapping pool/server di atas cocok dengan key source `/employeefull`, `/employeelimited`, `/management`, `/staff`, `/nonstaff`, `/contractor`, berurutan sesuai tabel. Bukti: `whatsapp_api_n8n/index.js:1161-1179` dan `whatsapp_api_n8nv2/reference/index_old.js:1418-1436`, dengan fingerprint pada laporan review. Network/relay, chaining dan static-only berasal dari snapshot router historis, bukan JavaScript dan belum dibaca ulang pada revisi ini.
+
+Help legacy (`whatsapp_api_n8n/index.js:4490-4496`) menyebut laptop employee Full/Limited pada `MTI-01`, mobile staff/nonstaff/management pada `MTI-02`, dan laptop contractor pada `MTI-03`. Ini petunjuk dokumentasi source, bukan validasi perangkat, algoritma klasifikasi employee, hak kategori, atau bukti mapping AP/VLAN. Jangan mengganti ejaan katalog `mti-01`/`mti-02`/`mti-03` berdasarkan petunjuk uppercase ini; pasangan, case dan konfigurasi aktual wajib diverifikasi sebelum koneksi/QR.
+
+Tidak ditemukan provisioning TV/printer/contractor VIP/CKB atau branch `DHCP_DISABLED` dalam source yang direview. Ketiadaan itu terbatas pada source tersebut; jangan mengarang mapping atau menyamakan `DHCP_DISABLED` dengan `DHCP_NETWORK`. Workflow n8n eksternal dan revisi deployed belum diperiksa.
 
 ## Phase 0 — Kontrak dan checkpoint
 
@@ -125,6 +134,14 @@ Acceptance:
 - Skenario router sukses/DB gagal dan DB sukses/router gagal dapat ditelusuri dan direkonsiliasi; state pending/failed/unknown eksplisit.
 - Tidak overwrite/mengadopsi existing lease tanpa persetujuan. Uji mutasi nyata memakai perangkat/MAC, pool, dan rollback yang ditentukan serta diizinkan pengguna; tidak membuat registrasi uji sembarang.
 
+### Safeguards hasil perbandingan legacy — wajib untuk connected implementation
+
+- Terapkan actor authorization dan allowlist kategori di shared backend service untuk setiap caller, bukan hanya tombol atau satu command. Gate nomor telepon reference tidak berlaku pada seluruh versi/caller; jalur AI legacy yang ditemukan tidak wired dan bukan bukti izin runtime. Uji pemanggilan langsung, kategori privileged yang ditolak, serta actor/session tidak valid tanpa mutasi.
+- Reuse normalisasi MAC existing secara server-side: tolak format parsial/mixed delimiter, multicast/broadcast/zero; terima randomized unicast valid. Setujui batas dan format komentar sebelum write; uji control characters, oversize dan input invalid tidak mencapai router. Legacy hanya menghapus colon dan menerima komentar bebas.
+- Directory association, device classification dan verified ownership adalah desain ICT baru, bukan kemampuan terbukti `addWifiUser`. Jangan menentukan Full/Limited atau Management/Staff/Nonstaff otomatis dari nama jabatan, department atau komentar tanpa policy eksplisit.
+- Duplicate pre-read saja tidak cukup: uji request identik berulang, submission bersamaan, MAC pada beberapa server dan timeout setelah router menerima write. Jangan mengambil lease pertama atau mengulang add tanpa rekonsiliasi. Readback harus cocok dengan target MAC, server, pool dan identitas lease; mismatch tetap unknown/failed, bukan sukses.
+- Intent dan audit persisten harus memungkinkan pemulihan router-success/DB-failure, restart dan response-loss tanpa klaim transaksi atomik. Tutup koneksi pada success/error/timeout dan jangan mencatat raw MAC/comment/secret ke operational logs; audit memakai data minimum dengan akses terbatas.
+
 ## Phase 4 — Kepemilikan dan self-service terbatas
 
 Output: Perangkat Saya, employee-device association, riwayat, permintaan registrasi/perubahan dengan persetujuan sesuai policy.
@@ -139,6 +156,8 @@ Acceptance:
 - Pisahkan masa registrasi dari DHCP lease-time; legacy tanpa bukti diberi unknown, bukan permanent atau expired hasil tebakan.
 - Worker hanya mencabut registrasi terkelola/terverifikasi; cek identitas MAC+server+lease dan revisi sebelum mutasi. Renew-vs-revoke race, job duplikat, restart, router offline, metadata mismatch, waktu/timezone dan expired backlog teruji.
 - Metadata tidak terhapus sebelum aksi dan audit selesai; pending revocation != revoked. Bukan janji pemutusan sesi instan.
+- Jangan memakai TTL Redis sebagai satu-satunya catatan expiry atau key MAC-only lintas server. Simpan deadline, identitas lease/server, managed ownership dan revision secara durable; query backlog berhalaman, bukan unbounded KEYS. Uji record melewati deadline dan restart tetap ditemukan hingga rekonsiliasi selesai.
+- Validasi durasi positif/integer/finite sesuai maksimum yang disetujui; permanen memerlukan policy eksplisit. Jangan port `/test` menit sebagai input produksi. Uji notifikasi gagal setelah pencabutan tidak mengubah hasil pencabutan menjadi gagal atau memicu remove ulang; verifikasi ketidakhadiran target setelah remove dan rekonsiliasi lease yang sudah hilang.
 - Tidak boleh ada dua scheduler yang sama-sama mengelola lease yang sama; inventaris dan handover bot lama wajib sebelum aktivasi.
 
 ## Gate delivery setiap fase

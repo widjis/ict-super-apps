@@ -1,6 +1,14 @@
 # WiFi ICT Super Apps — checkpoint untuk melanjutkan
 
-## Latest: Register Device UI-only preview
+## Latest documentation: legacy contract alignment
+
+The user approved adjusting the contract after the legacy registration comparison. `wifi-network-contract.md` now corrects the historical mock-screen baseline and expiry attribution, records exact source keys/SSID hints with provenance limits, and adds explicit connected-registration and expiry safeguards. `implementation-roadmap.md` and `open-questions-and-challenges.md` are synchronized. Source evidence remains `wifi-legacy-registration-review.md`; its statements that the contract was unchanged describe the earlier read-only audit, not this subsequent authorized edit.
+
+No category rights, employee classification, comment format or SSID/AP policy were invented. These decisions, scheduler handover, write authorization and live test targets remain open. No application/API/configuration changes, router calls, deployment or runtime tests in this documentation slice. `AGENTS.md` was already dirty and remains out of scope; the legacy review report was already untracked. Publication is not implied by local edits.
+
+Next: resolve those policy/evidence gates before connected implementation; do not treat this documentation approval as permission for writes or live rollout.
+
+## Previous: Register Device UI-only preview
 
 - Baseline `c27a0c4fc4a7c89d3a4a97035f3420106df28663` on `main`; source changes are uncommitted pending parent review. Do not include the pre-existing dirty `AGENTS.md`.
 - User authorized a scoped Phase 3 UI-only exception: navigable **Preview / Not connected**, MAC validation, optional unverified device notes and local review/edit. No submit API, owner verification, selectable catalog, expiry, persistence or writes. **Phase 2 and connected registration are not complete.**
